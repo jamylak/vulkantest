@@ -1,3 +1,6 @@
 #include <spdlog/spdlog.h>
 
-int main() { return 0; }
+int main() {
+  spdlog::info("Hello world");
+  return 0;
+}
