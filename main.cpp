@@ -7,9 +7,6 @@
 #include <spdlog/spdlog.h>
 #include <vulkan/vulkan.h>
 
-constexpr uint32_t MAX_DEVICES = 16;
-constexpr uint32_t MAX_DEVICE_EXTENSIONS = 200;
-
 #define VK_CHECK(x)                                                            \
   do {                                                                         \
     VkResult err = x;                                                          \
@@ -108,7 +105,7 @@ VkPhysicalDevice findGPU(const VkInstance &instance) {
   spdlog::info("Found {} devices", deviceCount);
 
   // Save devices to vector
-  std::array<VkPhysicalDevice, MAX_DEVICES> devices;
+  std::vector<VkPhysicalDevice> devices{deviceCount};
   vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
   // Print all devices
@@ -202,12 +199,13 @@ VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
       .pQueuePriorities = &queue_priority,
   };
 
-  uint32_t device_extension_count;
-  vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr,
-                                       &device_extension_count, nullptr);
-  VkExtensionProperties device_extensions[MAX_DEVICE_EXTENSIONS];
-  vkEnumerateDeviceExtensionProperties(
-      physicalDevice, nullptr, &device_extension_count, device_extensions);
+  // uint32_t deviceExtensionCount;
+  // vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr,
+  //                                      &deviceExtensionCount, nullptr);
+  // std::vector<VkExtensionProperties> deviceExtensions(deviceExtensionCount);
+  // vkEnumerateDeviceExtensionProperties(
+  //     physicalDevice, nullptr, &deviceExtensionCount,
+  //     deviceExtensions.data());
 
   const char *const requiredExtensions[2] = {"VK_KHR_swapchain",
                                              "VK_KHR_portability_subset"};
@@ -228,14 +226,88 @@ VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
   return device;
 }
 
+void logSurfaceCapabilities(
+    const VkSurfaceCapabilitiesKHR &surfaceCapabilities) {
+  // Print the surface capabilities
+  spdlog::info("Surface capabilities:");
+  spdlog::info("minImageCount: {}", surfaceCapabilities.minImageCount);
+  spdlog::info("maxImageCount: {}", surfaceCapabilities.maxImageCount);
+  spdlog::info("currentExtent: {}x{}", surfaceCapabilities.currentExtent.width,
+               surfaceCapabilities.currentExtent.height);
+  spdlog::info("minImageExtent: {}x{}",
+               surfaceCapabilities.minImageExtent.width,
+               surfaceCapabilities.minImageExtent.height);
+  spdlog::info("maxImageExtent: {}x{}",
+               surfaceCapabilities.maxImageExtent.width,
+               surfaceCapabilities.maxImageExtent.height);
+  spdlog::info("maxImageArrayLayers: {}",
+               surfaceCapabilities.maxImageArrayLayers);
+  spdlog::info("supportedTransforms: {}",
+               surfaceCapabilities.supportedTransforms);
+  spdlog::info("currentTransform: {}",
+               static_cast<uint8_t>(surfaceCapabilities.currentTransform));
+  spdlog::info("supportedCompositeAlpha: {}",
+               surfaceCapabilities.supportedCompositeAlpha);
+  spdlog::info("supportedUsageFlags: {}",
+               surfaceCapabilities.supportedUsageFlags);
+}
+
+void logSurfaceFormats(const std::vector<VkSurfaceFormatKHR> &surfaceFormats) {
+  spdlog::info("List all surface formats");
+  for (auto &surfaceFormat : surfaceFormats) {
+    spdlog::info("Surface format: {}", static_cast<int>(surfaceFormat.format));
+    spdlog::info("Color space: {}", static_cast<int>(surfaceFormat.colorSpace));
+  }
+}
+VkSurfaceFormatKHR selectSwapchainFormat(const VkPhysicalDevice &physicalDevice,
+                                         const VkSurfaceKHR &surface) {
+  // Surface Capabilities
+  spdlog::info("Get surface capabilities");
+  VkSurfaceCapabilitiesKHR surfaceCapabilities;
+  VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface,
+                                                     &surfaceCapabilities));
+
+  logSurfaceCapabilities(surfaceCapabilities);
+
+  // Get surface formats
+  uint32_t surfaceFormatCount;
+  VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface,
+                                                &surfaceFormatCount, nullptr));
+  spdlog::info("Surface format count: {}", surfaceFormatCount);
+
+  std::vector<VkSurfaceFormatKHR> surfaceFormats(surfaceFormatCount);
+  VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(
+      physicalDevice, surface, &surfaceFormatCount, surfaceFormats.data()));
+
+  // logSurfaceFormats(surfaceFormats);
+
+  // https://github.com/KhronosGroup/Vulkan-Samples/blob/cc7b29696011e7499379695947b9e634ed61ea10/samples/api/hello_triangle/hello_triangle.cpp#L443
+  // Fallback format
+  VkSurfaceFormatKHR surfaceFormat = surfaceFormats[0];
+  auto preferred_format_list =
+      std::vector<VkFormat>{VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_SRGB,
+                            VK_FORMAT_A8B8G8R8_SRGB_PACK32};
+
+  for (auto &candidate : surfaceFormats) {
+    if (std::find(preferred_format_list.begin(), preferred_format_list.end(),
+                  candidate.format) != preferred_format_list.end()) {
+      surfaceFormat = candidate;
+      break;
+    }
+  }
+
+  return surfaceFormat;
+}
+
 int main() {
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
 
   VkInstance instance = setupVulkanInstance();
-  VkPhysicalDevice device = findGPU(instance);
+  VkPhysicalDevice physicalDevice = findGPU(instance);
   VkSurfaceKHR surface = createVulkanSurface(instance, window);
-  createVulkanLogicalDevice(device, surface);
+  createVulkanLogicalDevice(physicalDevice, surface);
+  selectSwapchainFormat(physicalDevice, surface);
 
   // while (!glfwWindowShouldClose(window)) {
   //   glfwPollEvents();
