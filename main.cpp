@@ -124,14 +124,8 @@ GLFWwindow *createGLFWwindow() {
   return window;
 }
 
-int main() {
-  initGLFW();
-  GLFWwindow *window = createGLFWwindow();
-
-  VkInstance instance = setupVulkanInstance();
-  findGPUs(instance);
-
-  // Create Vulkan Surface
+VkSurfaceKHR createVulkanSurface(const VkInstance &instance,
+                                 GLFWwindow *const &window) {
   VkSurfaceKHR surface;
   VkResult createWindowResult =
       glfwCreateWindowSurface(instance, window, nullptr, &surface);
@@ -142,6 +136,16 @@ int main() {
     glfwTerminate();
     throw std::runtime_error("Failed to create Vulkan surface");
   }
+  return surface;
+}
+
+int main() {
+  initGLFW();
+  GLFWwindow *window = createGLFWwindow();
+
+  VkInstance instance = setupVulkanInstance();
+  findGPUs(instance);
+  createVulkanSurface(instance, window);
 
   // while (!glfwWindowShouldClose(window)) {
   //   glfwPollEvents();
