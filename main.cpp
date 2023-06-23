@@ -389,9 +389,10 @@ createSwapchain(const VkDevice &device, const VkSurfaceKHR &surface,
   return swapchain;
 }
 
-void createSwapchainImageViews(const VkDevice &device,
-                               const VkSwapchainKHR &swapchain,
-                               const VkSurfaceFormatKHR &surfaceFormat) {
+std::vector<VkImageView>
+createSwapchainImageViews(const VkDevice &device,
+                          const VkSwapchainKHR &swapchain,
+                          const VkSurfaceFormatKHR &surfaceFormat) {
   // Get swapchain images
   uint32_t swapchainImageCount;
   VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount,
@@ -435,6 +436,7 @@ void createSwapchainImageViews(const VkDevice &device,
     VK_CHECK(vkCreateImageView(device, &imageViewCreateInfo, nullptr,
                                &swapchainImageViews[i]));
   }
+  return swapchainImageViews;
 }
 
 int main() {
@@ -449,7 +451,9 @@ int main() {
       getSurfaceCapabilities(physicalDevice, surface);
   VkSurfaceFormatKHR surfaceFormat =
       selectSwapchainFormat(physicalDevice, surface);
-  createSwapchain(logicalDevice, surface, surfaceCapabilities, surfaceFormat);
+  VkSwapchainKHR swapchain = createSwapchain(
+      logicalDevice, surface, surfaceCapabilities, surfaceFormat);
+  createSwapchainImageViews(logicalDevice, swapchain, surfaceFormat);
 
   // while (!glfwWindowShouldClose(window)) {
   //   glfwPollEvents();
