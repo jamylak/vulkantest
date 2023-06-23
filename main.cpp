@@ -145,7 +145,7 @@ VkSurfaceKHR createVulkanSurface(const VkInstance &instance,
 
 VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
                                    const VkSurfaceKHR &surface) {
-  float queue_priority = 1.0f;
+  float queuePriority = 1.0f;
   int32_t graphicsQueueIndex = -1;
 
   // https://github.com/KhronosGroup/Vulkan-Samples/blob/cc7b29696011e7499379695947b9e634ed61ea10/samples/api/hello_triangle/hello_triangle.cpp#L293
@@ -157,31 +157,31 @@ VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
 
   spdlog::info("Found {} queue families", queueFamilyCount);
 
-  std::vector<VkQueueFamilyProperties> queue_families(queueFamilyCount);
+  std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
   vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount,
-                                           queue_families.data());
+                                           queueFamilies.data());
 
   // Print debug info for all queue families
   for (uint32_t i = 0; i < queueFamilyCount; i++) {
     spdlog::info("Queue family {} has {} queues", i,
-                 queue_families[i].queueCount);
+                 queueFamilies[i].queueCount);
     spdlog::info("Queue family {} supports graphics: {} ", i,
-                 queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT);
+                 queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT);
     spdlog::info("Queue family {} supports compute: {} ", i,
-                 queue_families[i].queueFlags & VK_QUEUE_COMPUTE_BIT);
+                 queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT);
     spdlog::info("Queue family {} supports transfer: {} ", i,
-                 queue_families[i].queueFlags & VK_QUEUE_TRANSFER_BIT);
+                 queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT);
     spdlog::info("Queue family {} supports sparse binding: {} ", i,
-                 queue_families[i].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT);
+                 queueFamilies[i].queueFlags & VK_QUEUE_SPARSE_BINDING_BIT);
     spdlog::info("Queue family {} supports protected: {} ", i,
-                 queue_families[i].queueFlags & VK_QUEUE_PROTECTED_BIT);
+                 queueFamilies[i].queueFlags & VK_QUEUE_PROTECTED_BIT);
 
     VkBool32 supportsPresent;
     vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, surface,
                                          &supportsPresent);
     spdlog::info("Queue family {} supports present: {} ", i, supportsPresent);
 
-    if (queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT &&
+    if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT &&
         supportsPresent) {
       graphicsQueueIndex = i;
     }
@@ -192,11 +192,11 @@ VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
   }
 
   // Create one queue
-  VkDeviceQueueCreateInfo queue_info = {
+  VkDeviceQueueCreateInfo queueInfo = {
       .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
       .queueFamilyIndex = static_cast<uint32_t>(graphicsQueueIndex),
       .queueCount = 1,
-      .pQueuePriorities = &queue_priority,
+      .pQueuePriorities = &queuePriority,
   };
 
   // uint32_t deviceExtensionCount;
@@ -216,7 +216,7 @@ VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
   VkDeviceCreateInfo deviceCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
       .queueCreateInfoCount = 1,
-      .pQueueCreateInfos = &queue_info,
+      .pQueueCreateInfos = &queueInfo,
       .enabledExtensionCount = 2,
       .ppEnabledExtensionNames = requiredExtensions,
   };
@@ -284,13 +284,13 @@ VkSurfaceFormatKHR selectSwapchainFormat(const VkPhysicalDevice &physicalDevice,
   // https://github.com/KhronosGroup/Vulkan-Samples/blob/cc7b29696011e7499379695947b9e634ed61ea10/samples/api/hello_triangle/hello_triangle.cpp#L443
   // Fallback format
   VkSurfaceFormatKHR surfaceFormat = surfaceFormats[0];
-  auto preferred_format_list =
+  auto preferredFormatList =
       std::vector<VkFormat>{VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_SRGB,
                             VK_FORMAT_A8B8G8R8_SRGB_PACK32};
 
   for (auto &candidate : surfaceFormats) {
-    if (std::find(preferred_format_list.begin(), preferred_format_list.end(),
-                  candidate.format) != preferred_format_list.end()) {
+    if (std::find(preferredFormatList.begin(), preferredFormatList.end(),
+                  candidate.format) != preferredFormatList.end()) {
       surfaceFormat = candidate;
       break;
     }
