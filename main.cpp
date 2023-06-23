@@ -325,19 +325,19 @@ createSwapchain(const VkDevice &device, const VkSurfaceKHR &surface,
   // Determine the number of VkImage's to use in the swapchain.
   // Ideally, we desire to own 1 image at a time, the rest of the images can
   // either be rendered to and/or being queued up for display.
-  uint32_t desired_swapchain_images = surfaceCapabilities.minImageCount + 1;
+  uint32_t desiredSwapchainImages = surfaceCapabilities.minImageCount + 1;
   if ((surfaceCapabilities.maxImageCount > 0) &&
-      (desired_swapchain_images > surfaceCapabilities.maxImageCount)) {
+      (desiredSwapchainImages > surfaceCapabilities.maxImageCount)) {
     // Application must settle for fewer images than desired.
-    desired_swapchain_images = surfaceCapabilities.maxImageCount;
+    desiredSwapchainImages = surfaceCapabilities.maxImageCount;
   }
-  spdlog::info("Desired swapchain images: {}", desired_swapchain_images);
+  spdlog::info("Desired swapchain images: {}", desiredSwapchainImages);
 
   // Just set identity bit transform
-  VkSurfaceTransformFlagBitsKHR pre_transform =
+  VkSurfaceTransformFlagBitsKHR preTransform =
       VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
   // FIFO must be supported by all implementations.
-  VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+  VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
   // Find a supported composite type.
   VkCompositeAlphaFlagBitsKHR composite = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -366,7 +366,7 @@ createSwapchain(const VkDevice &device, const VkSurfaceKHR &surface,
       .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
       .pNext = nullptr,
       .surface = surface,
-      .minImageCount = desired_swapchain_images,
+      .minImageCount = desiredSwapchainImages,
       .imageFormat = surfaceFormat.format,
       .imageColorSpace = surfaceFormat.colorSpace,
       .imageExtent.width = swapchainSize.width,
@@ -374,9 +374,9 @@ createSwapchain(const VkDevice &device, const VkSurfaceKHR &surface,
       .imageArrayLayers = 1,
       .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
       .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .preTransform = pre_transform,
+      .preTransform = preTransform,
       .compositeAlpha = composite,
-      .presentMode = swapchain_present_mode,
+      .presentMode = swapchainPresentMode,
       .clipped = VK_TRUE,
       // temporary
       .oldSwapchain = VK_NULL_HANDLE,
