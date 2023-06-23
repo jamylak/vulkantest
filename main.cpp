@@ -1,5 +1,6 @@
 #include <_types/_uint64_t.h>
 #include <stdexcept>
+#include <stdint.h>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -259,8 +260,9 @@ void logSurfaceFormats(const std::vector<VkSurfaceFormatKHR> &surfaceFormats) {
     spdlog::info("Color space: {}", static_cast<int>(surfaceFormat.colorSpace));
   }
 }
-VkSurfaceFormatKHR selectSwapchainFormat(const VkPhysicalDevice &physicalDevice,
-                                         const VkSurfaceKHR &surface) {
+VkSurfaceCapabilitiesKHR
+getSurfaceCapabilities(const VkPhysicalDevice &physicalDevice,
+                       const VkSurfaceKHR &surface) {
   // Surface Capabilities
   spdlog::info("Get surface capabilities");
   VkSurfaceCapabilitiesKHR surfaceCapabilities;
@@ -268,7 +270,10 @@ VkSurfaceFormatKHR selectSwapchainFormat(const VkPhysicalDevice &physicalDevice,
                                                      &surfaceCapabilities));
 
   logSurfaceCapabilities(surfaceCapabilities);
-
+  return surfaceCapabilities;
+}
+VkSurfaceFormatKHR selectSwapchainFormat(const VkPhysicalDevice &physicalDevice,
+                                         const VkSurfaceKHR &surface) {
   // Get surface formats
   uint32_t surfaceFormatCount;
   VK_CHECK(vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface,
@@ -299,6 +304,139 @@ VkSurfaceFormatKHR selectSwapchainFormat(const VkPhysicalDevice &physicalDevice,
   return surfaceFormat;
 }
 
+VkSwapchainKHR
+createSwapchain(const VkDevice &device, const VkSurfaceKHR &surface,
+                const VkSurfaceCapabilitiesKHR &surfaceCapabilities,
+                const VkSurfaceFormatKHR &surfaceFormat) {
+  VkExtent2D swapchainSize;
+  if (surfaceCapabilities.currentExtent.width == 0xFFFFFFFF) {
+    // TODO: Get swapchain_size.width from the window
+    throw std::runtime_error(
+        "Untested code... "
+        "surfaceCapabilities.currentExtent.width == 0xFFFFFFFF");
+  } else {
+    spdlog::info("Surface capabilities current extent width is not 0xFFFFFFFF");
+    swapchainSize = surfaceCapabilities.currentExtent;
+    spdlog::info("Swapchain size: {}x{}", swapchainSize.width,
+                 swapchainSize.height);
+    // Tested on mac with molten vk and got sample value 1600x1200
+  }
+
+  // Determine the number of VkImage's to use in the swapchain.
+  // Ideally, we desire to own 1 image at a time, the rest of the images can
+  // either be rendered to and/or being queued up for display.
+  uint32_t desired_swapchain_images = surfaceCapabilities.minImageCount + 1;
+  if ((surfaceCapabilities.maxImageCount > 0) &&
+      (desired_swapchain_images > surfaceCapabilities.maxImageCount)) {
+    // Application must settle for fewer images than desired.
+    desired_swapchain_images = surfaceCapabilities.maxImageCount;
+  }
+  spdlog::info("Desired swapchain images: {}", desired_swapchain_images);
+
+  // Just set identity bit transform
+  VkSurfaceTransformFlagBitsKHR pre_transform =
+      VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+  // FIFO must be supported by all implementations.
+  VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+
+  // Find a supported composite type.
+  VkCompositeAlphaFlagBitsKHR composite = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+  if (surfaceCapabilities.supportedCompositeAlpha &
+      VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR) {
+    composite = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+  } else if (surfaceCapabilities.supportedCompositeAlpha &
+             VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) {
+    composite = VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR;
+  } else if (surfaceCapabilities.supportedCompositeAlpha &
+             VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR) {
+    composite = VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR;
+  } else if (surfaceCapabilities.supportedCompositeAlpha &
+             VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR) {
+    composite = VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR;
+  }
+  spdlog::info("Composite alpha: {}", static_cast<int>(composite));
+
+  spdlog::info("Selected surface format");
+  spdlog::info("Surface format: {}", static_cast<int>(surfaceFormat.format));
+  spdlog::info("Color space: {}", static_cast<int>(surfaceFormat.colorSpace));
+
+  // Create a swapchain
+  spdlog::info("Create a swapchain");
+  VkSwapchainCreateInfoKHR swapchainCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+      .pNext = nullptr,
+      .surface = surface,
+      .minImageCount = desired_swapchain_images,
+      .imageFormat = surfaceFormat.format,
+      .imageColorSpace = surfaceFormat.colorSpace,
+      .imageExtent.width = swapchainSize.width,
+      .imageExtent.height = swapchainSize.height,
+      .imageArrayLayers = 1,
+      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .preTransform = pre_transform,
+      .compositeAlpha = composite,
+      .presentMode = swapchain_present_mode,
+      .clipped = VK_TRUE,
+      // temporary
+      .oldSwapchain = VK_NULL_HANDLE,
+  };
+
+  VkSwapchainKHR swapchain;
+  VK_CHECK(
+      vkCreateSwapchainKHR(device, &swapchainCreateInfo, nullptr, &swapchain));
+
+  return swapchain;
+}
+
+void createSwapchainImageViews(const VkDevice &device,
+                               const VkSwapchainKHR &swapchain,
+                               const VkSurfaceFormatKHR &surfaceFormat) {
+  // Get swapchain images
+  uint32_t swapchainImageCount;
+  VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount,
+                                   nullptr));
+  spdlog::info("Swapchain image count: {}", swapchainImageCount);
+
+  std::vector<VkImage> swapchainImages(swapchainImageCount);
+  VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount,
+                                   swapchainImages.data()));
+  for (uint32_t i = 0; i < swapchainImageCount; i++) {
+    spdlog::info("Swapchain image {}", i);
+    // spdlog::info("Size of swpachain image variable is {}",
+    //              sizeof(swapchainImages[i]));
+    // Definitely wrong but just to see something in debug
+    // spdlog::info("Swapchain image handle: {}",
+    //              reinterpret_cast<uint64_t>(swapchainImages[i]));
+  }
+
+  // Create image views
+  std::vector<VkImageView> swapchainImageViews(swapchainImageCount);
+  for (uint32_t i = 0; i < swapchainImageCount; i++) {
+    VkImageViewCreateInfo imageViewCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .flags = 0,
+        .image = swapchainImages[i],
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = surfaceFormat.format,
+        .components.r = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.g = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.b = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .components.a = VK_COMPONENT_SWIZZLE_IDENTITY,
+        .subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .subresourceRange.baseMipLevel = 0,
+        .subresourceRange.levelCount = 1,
+        .subresourceRange.baseArrayLayer = 0,
+        .subresourceRange.layerCount = 1,
+
+    };
+    imageViewCreateInfo.pNext = nullptr;
+
+    VK_CHECK(vkCreateImageView(device, &imageViewCreateInfo, nullptr,
+                               &swapchainImageViews[i]));
+  }
+}
+
 int main() {
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
@@ -306,8 +444,12 @@ int main() {
   VkInstance instance = setupVulkanInstance();
   VkPhysicalDevice physicalDevice = findGPU(instance);
   VkSurfaceKHR surface = createVulkanSurface(instance, window);
-  createVulkanLogicalDevice(physicalDevice, surface);
-  selectSwapchainFormat(physicalDevice, surface);
+  VkDevice logicalDevice = createVulkanLogicalDevice(physicalDevice, surface);
+  VkSurfaceCapabilitiesKHR surfaceCapabilities =
+      getSurfaceCapabilities(physicalDevice, surface);
+  VkSurfaceFormatKHR surfaceFormat =
+      selectSwapchainFormat(physicalDevice, surface);
+  createSwapchain(logicalDevice, surface, surfaceCapabilities, surfaceFormat);
 
   // while (!glfwWindowShouldClose(window)) {
   //   glfwPollEvents();

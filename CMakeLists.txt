@@ -20,6 +20,6 @@ target_link_libraries(Planet PRIVATE glfw)
 if(MSVC)
   target_compile_options(${TARGET_NAME} Planet PRIVATE /W4 /WX)
 else()
-  target_compile_options(${TARGET_NAME} Planet PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  target_compile_options(${TARGET_NAME} Planet PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-c99-designator)
 endif()
 
