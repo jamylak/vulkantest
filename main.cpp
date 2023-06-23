@@ -1,4 +1,5 @@
 #include <_types/_uint64_t.h>
+#include <stdexcept>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -77,7 +78,7 @@ VkInstance setupVulkanInstance() {
   return instance;
 }
 
-void findGPUs(VkInstance &instance) {
+void findGPUs(const VkInstance &instance) {
   // Find all GPU Devices
   uint32_t deviceCount = 0;
   spdlog::info("Enumerating devices...");
@@ -105,13 +106,46 @@ void findGPUs(VkInstance &instance) {
   }
 }
 
-int main() {
-  spdlog::info("Hello world");
+void initGLFW() {
   // Initialize GLFW
   if (!glfwInit()) {
     throw std::runtime_error("Failed to initialize GLFW");
   }
+  // Tell GLFW not to create an OpenGL context
+  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+}
+
+GLFWwindow *createGLFWwindow() {
+  GLFWwindow *window = glfwCreateWindow(800, 600, "Vulkan", nullptr, nullptr);
+  if (!window) {
+    glfwTerminate();
+    throw std::runtime_error("Failed to create GLFW window");
+  }
+  return window;
+}
+
+int main() {
+  initGLFW();
+  GLFWwindow *window = createGLFWwindow();
+
   VkInstance instance = setupVulkanInstance();
   findGPUs(instance);
+
+  // Create Vulkan Surface
+  VkSurfaceKHR surface;
+  VkResult createWindowResult =
+      glfwCreateWindowSurface(instance, window, nullptr, &surface);
+  if (createWindowResult != VK_SUCCESS) {
+    spdlog::info("Failed to create Vulkan surface");
+    spdlog::info("Result: {}", static_cast<int>(createWindowResult));
+    vkDestroyInstance(instance, nullptr);
+    glfwTerminate();
+    throw std::runtime_error("Failed to create Vulkan surface");
+  }
+
+  // while (!glfwWindowShouldClose(window)) {
+  //   glfwPollEvents();
+  // }
+
   return 0;
 }
