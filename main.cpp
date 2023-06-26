@@ -478,48 +478,32 @@ VkCommandPool createCommandPool(const VkDevice &logicalDevice,
   return commandPool;
 }
 
-int main() {
-  initGLFW();
-  GLFWwindow *window = createGLFWwindow();
-
-  VkInstance instance = setupVulkanInstance();
-  VkPhysicalDevice physicalDevice = findGPU(instance);
-  enumerateExtensions(physicalDevice);
-
-  VkSurfaceKHR surface = createVulkanSurface(instance, window);
-  uint32_t graphicsQueueIndex =
-      getVulkanGraphicsQueueIndex(physicalDevice, surface);
-  VkDevice logicalDevice =
-      createVulkanLogicalDevice(physicalDevice, graphicsQueueIndex);
-  VkSurfaceCapabilitiesKHR surfaceCapabilities =
-      getSurfaceCapabilities(physicalDevice, surface);
-  VkSurfaceFormatKHR surfaceFormat =
-      selectSwapchainFormat(physicalDevice, surface);
-  VkSwapchainKHR swapchain = createSwapchain(
-      logicalDevice, surface, surfaceCapabilities, surfaceFormat);
-  std::vector<VkImageView> swapchainImageViews =
-      createSwapchainImageViews(logicalDevice, swapchain, surfaceFormat);
-  VkCommandPool commandPool =
-      createCommandPool(logicalDevice, graphicsQueueIndex);
-
-  VkCommandBuffer commandBuffer;
+VkCommandBuffer createCommandBuffer(const VkDevice &logicalDevice,
+                                    const VkCommandPool &commandPool) {
+  spdlog::info("Create command buffer");
   VkCommandBufferAllocateInfo commandBufferAllocateInfo{
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      .pNext = nullptr,
       .commandPool = commandPool,
       .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
       .commandBufferCount = 1,
   };
-
+  VkCommandBuffer commandBuffer;
   VK_CHECK(vkAllocateCommandBuffers(logicalDevice, &commandBufferAllocateInfo,
                                     &commandBuffer));
+  return commandBuffer;
+}
 
-  spdlog::info("Check swapchain image view [0]");
-  spdlog::info("Swapchain image view handle: {}",
-               reinterpret_cast<uint64_t>(swapchainImageViews[0]));
+void renderScene(const VkImageView &imageView,
+                 const VkSurfaceCapabilitiesKHR surfaceCapabilities,
+                 const VkCommandBuffer &commandBuffer) {
+  // spdlog::info("Check swapchain image view [0]");
+  // spdlog::info("Swapchain image view handle: {}",
+  //              reinterpret_cast<uint64_t>(swapchainImageViews[0]));
 
   VkRenderingAttachmentInfo colorAttachmentInfo{
       .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-      .imageView = swapchainImageViews[0],
+      .imageView = imageView,
       .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -552,6 +536,34 @@ int main() {
   vkCmdEndRenderingKHR(commandBuffer);
 
   VK_CHECK(vkEndCommandBuffer(commandBuffer));
+}
+
+int main() {
+  initGLFW();
+  GLFWwindow *window = createGLFWwindow();
+
+  VkInstance instance = setupVulkanInstance();
+  VkPhysicalDevice physicalDevice = findGPU(instance);
+  enumerateExtensions(physicalDevice);
+
+  VkSurfaceKHR surface = createVulkanSurface(instance, window);
+  uint32_t graphicsQueueIndex =
+      getVulkanGraphicsQueueIndex(physicalDevice, surface);
+  VkDevice logicalDevice =
+      createVulkanLogicalDevice(physicalDevice, graphicsQueueIndex);
+  VkSurfaceCapabilitiesKHR surfaceCapabilities =
+      getSurfaceCapabilities(physicalDevice, surface);
+  VkSurfaceFormatKHR surfaceFormat =
+      selectSwapchainFormat(physicalDevice, surface);
+  VkSwapchainKHR swapchain = createSwapchain(
+      logicalDevice, surface, surfaceCapabilities, surfaceFormat);
+  std::vector<VkImageView> swapchainImageViews =
+      createSwapchainImageViews(logicalDevice, swapchain, surfaceFormat);
+  VkCommandPool commandPool =
+      createCommandPool(logicalDevice, graphicsQueueIndex);
+  VkCommandBuffer commandBuffer =
+      createCommandBuffer(logicalDevice, commandPool);
+  renderScene(swapchainImageViews[0], surfaceCapabilities, commandBuffer);
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
