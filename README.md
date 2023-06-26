@@ -18,6 +18,15 @@ cmake . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=1
 brew install fmt spdlog
 ```
 
+# Compile shaders
+
+```sh
+glslangValidator -V shaders/planet.frag -o shaders/planet.spv
+glslangValidator -V shaders/fullscreenquad.vert -o shaders/fullscreenquad.spv
+```
+
+- [ ]  TODO: Update to include linking moltenvk directly because it's needed for dynamic rendering
+
 ### g++
 ```sh
 # Debug

@@ -1,4 +1,5 @@
 #include <_types/_uint64_t.h>
+#include <fstream>
 #include <stdexcept>
 #include <stdint.h>
 #include <vector>
@@ -35,6 +36,32 @@ GLFWwindow *createGLFWwindow() {
     throw std::runtime_error("Failed to create GLFW window");
   }
   return window;
+}
+
+std::vector<char> readFile(const std::string &filename) {
+  std::ifstream file(filename, std::ios::ate | std::ios::binary);
+  size_t fileSize = (size_t)file.tellg();
+  std::vector<char> buffer(fileSize);
+  file.seekg(0);
+  file.read(buffer.data(), fileSize);
+  file.close();
+  return buffer;
+}
+
+VkShaderModule loadShaderModule(const VkDevice &device, const char *path) {
+  spdlog::info("Loading shader module {}", path);
+  VkShaderModule shaderModule;
+  std::vector<char> code = readFile(path);
+  VkShaderModuleCreateInfo createInfo = {
+      .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0,
+      .codeSize = code.size(),
+      .pCode = reinterpret_cast<const uint32_t *>(code.data()),
+  };
+  spdlog::info("Creating shader module");
+  VK_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
+  return shaderModule;
 }
 
 void enumerateExtensions(const VkPhysicalDevice &physicalDevice) {
@@ -87,13 +114,13 @@ VkInstance setupVulkanInstance() {
 
   // Enable validation layers
   // as a c++ std::array with the basic validation layer
-  static constexpr std::array<const char *, 1> validationLayers = {
-      "VK_LAYER_KHRONOS_validation",
+  static constexpr std::array<const char *, 2> validationLayers = {
+      "VK_LAYER_KHRONOS_validation", "VK_LAYER_LUNARG_api_dump",
+      // "VK_LAYER_LUNARG_parameter_validation",
+      // "VK_LAYER_LUNARG_screenshot",
       // "VK_LAYER_LUNARG_core_validation",
       // "VK_LAYER_LUNARG_device_limits",
       // "VK_LAYER_LUNARG_object_tracker",
-      // "VK_LAYER_LUNARG_parameter_validation",
-      // "VK_LAYER_LUNARG_screenshot",
   };
 
   VkInstanceCreateInfo createInfo = {
@@ -538,6 +565,130 @@ void renderScene(const VkImageView &imageView,
   VK_CHECK(vkEndCommandBuffer(commandBuffer));
 }
 
+VkPipeline createPipeline(const VkDevice &logicalDevice,
+                          const VkSurfaceCapabilitiesKHR &surfaceCapabilities) {
+  spdlog::info("Create pipeline");
+  // https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
+  VkPipelineVertexInputStateCreateInfo emptyVertexInputStateCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+      .vertexBindingDescriptionCount = 0,
+      .pVertexBindingDescriptions = nullptr,
+      .vertexAttributeDescriptionCount = 0,
+      .pVertexAttributeDescriptions = nullptr,
+  };
+  VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .setLayoutCount = 0,
+      .pSetLayouts = nullptr,
+      .pushConstantRangeCount = 0,
+      .pPushConstantRanges = nullptr,
+  };
+  VkPipelineLayout pipelineLayout;
+  VK_CHECK(vkCreatePipelineLayout(logicalDevice, &pipelineLayoutCreateInfo,
+                                  nullptr, &pipelineLayout));
+
+  std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
+
+  // Vertex shader stage of the pipeline
+  shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+  shaderStages[0].module =
+      loadShaderModule(logicalDevice, "shaders/fullscreenquad.spv");
+  shaderStages[0].pName = "main";
+
+  // Fragment shader stage of the pipeline
+  shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  shaderStages[1].module =
+      loadShaderModule(logicalDevice, "shaders/planet.spv");
+  shaderStages[1].pName = "main";
+
+  VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+      .cullMode = VK_CULL_MODE_FRONT_BIT,
+      .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+      .lineWidth = 1.0f,
+  };
+
+  VkRect2D scissor{
+      .offset = {0, 0},
+      .extent = {surfaceCapabilities.currentExtent.width,
+                 surfaceCapabilities.currentExtent.height},
+  };
+
+  VkViewport viewport{
+      .x = 0.0f,
+      .y = 0.0f,
+      .width = static_cast<float>(surfaceCapabilities.currentExtent.width),
+      .height = static_cast<float>(surfaceCapabilities.currentExtent.height),
+      .minDepth = 0.0f,
+      .maxDepth = 1.0f,
+  };
+
+  VkPipelineViewportStateCreateInfo viewportStateCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      .viewportCount = 1,
+      .pViewports = &viewport,
+      .scissorCount = 1,
+      .pScissors = &scissor,
+  };
+
+  VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+      .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT, // no multisampling
+  };
+
+  VkPipelineInputAssemblyStateCreateInfo assemblyStateCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+      .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+  };
+
+  VkPipelineColorBlendAttachmentState blendAttachment{};
+  blendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+      VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+  VkPipelineColorBlendStateCreateInfo blend{
+      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
+  blend.attachmentCount = 1;
+  blend.pAttachments = &blendAttachment;
+
+  // Disable all depth testing
+  VkPipelineDepthStencilStateCreateInfo depthStencil{
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+
+  VkFormat defaultFormat = VK_FORMAT_R8G8B8A8_SRGB;
+
+  // for dynamic rendering
+  VkPipelineRenderingCreateInfoKHR dynamicPipelineCreate{
+      VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR};
+  dynamicPipelineCreate.pNext = VK_NULL_HANDLE;
+  dynamicPipelineCreate.colorAttachmentCount = 1;
+  dynamicPipelineCreate.pColorAttachmentFormats = &defaultFormat;
+  dynamicPipelineCreate.depthAttachmentFormat = VK_FORMAT_D16_UNORM;
+
+  VkGraphicsPipelineCreateInfo pipelineCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+      .pNext = &dynamicPipelineCreate,
+      .stageCount = static_cast<uint32_t>(shaderStages.size()),
+      .pStages = shaderStages.data(),
+      .pVertexInputState = &emptyVertexInputStateCreateInfo,
+      .pInputAssemblyState = &assemblyStateCreateInfo,
+      .pViewportState = &viewportStateCreateInfo,
+      .pRasterizationState = &rasterizationStateCreateInfo,
+      .pMultisampleState = &multisampleStateCreateInfo,
+      .pDepthStencilState = &depthStencil,
+      .pColorBlendState = &blend,
+      .layout = pipelineLayout,
+  };
+  spdlog::info("Create the graphics pipeline");
+  VkPipeline pipeline;
+  VK_CHECK(vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1,
+                                     &pipelineCreateInfo, nullptr, &pipeline));
+  spdlog::info("Created the pipeline");
+  return pipeline;
+}
+
 int main() {
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
@@ -564,6 +715,14 @@ int main() {
   VkCommandBuffer commandBuffer =
       createCommandBuffer(logicalDevice, commandPool);
   renderScene(swapchainImageViews[0], surfaceCapabilities, commandBuffer);
+  VkPipeline pipeline = createPipeline(logicalDevice, surfaceCapabilities);
+
+  // void
+  //  VkSubmitInfo submitInfo{
+  //      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+  //      .commandBufferCount = 1,
+  //      .pCommandBuffers = &commandBuffer,
+  //  };
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
