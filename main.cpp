@@ -514,8 +514,6 @@ int main() {
                                     &commandBuffer));
 
   spdlog::info("Check swapchain image view [0]");
-  spdlog::info("Size of swpachain image view variable is {}",
-               sizeof(swapchainImageViews[0]));
   spdlog::info("Swapchain image view handle: {}",
                reinterpret_cast<uint64_t>(swapchainImageViews[0]));
 
