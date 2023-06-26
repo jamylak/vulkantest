@@ -1,6 +1,7 @@
 #include <_types/_uint64_t.h>
 #include <stdexcept>
 #include <stdint.h>
+#include <vector>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -11,7 +12,7 @@
 #define VK_CHECK(x)                                                            \
   do {                                                                         \
     VkResult err = x;                                                          \
-    spdlog::info("Result: {}", static_cast<int>(err));                         \
+    spdlog::info("VkResult: {}", static_cast<int>(err));                       \
     if (err) {                                                                 \
       spdlog::error("Detected Vulkan error: {}", static_cast<int>(err));       \
       throw std::runtime_error("Got a runtime_error");                         \
@@ -36,6 +37,21 @@ GLFWwindow *createGLFWwindow() {
   return window;
 }
 
+void enumerateExtensions(const VkPhysicalDevice &physicalDevice) {
+  // enumerate all extension properties
+  uint32_t deviceExtensionCount;
+  vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr,
+                                       &deviceExtensionCount, nullptr);
+  std::vector<VkExtensionProperties> deviceExtensions(deviceExtensionCount);
+  vkEnumerateDeviceExtensionProperties(
+      physicalDevice, nullptr, &deviceExtensionCount, deviceExtensions.data());
+
+  spdlog::info("Device has {} extensions", deviceExtensionCount);
+  for (const auto &extension : deviceExtensions) {
+    spdlog::info("{}", extension.extensionName);
+  }
+}
+
 VkInstance setupVulkanInstance() {
   VkApplicationInfo appInfo = {
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -44,7 +60,7 @@ VkInstance setupVulkanInstance() {
       .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
       .pEngineName = "Planet Engine",
       .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-      .apiVersion = VK_API_VERSION_1_3,
+      .apiVersion = VK_API_VERSION_1_2,
   };
   uint32_t extensionCount;
   const char **reqExtensions =
@@ -56,17 +72,16 @@ VkInstance setupVulkanInstance() {
 
   // Create an array of extensions which include
   // VK_KHR_portability_enumeration and VK_MVK_MACOS_SURFACE_EXTENSION_NAME
-  const char *extensions[99]{};
+  std::vector<const char *> extensions;
   for (uint32_t i = 0; i < extensionCount; i++) {
-    extensions[i] = reqExtensions[i];
+    extensions.emplace_back(reqExtensions[i]);
   }
-  extensions[extensionCount] = "VK_KHR_portability_enumeration";
+  extensions.emplace_back("VK_KHR_portability_enumeration");
 
   spdlog::info("Using the following extensions");
-  for (uint32_t i = 0; i <= extensionCount; i++) {
-    spdlog::info("Extension: {}", extensions[i]);
+  for (const auto &extension : extensions) {
+    spdlog::info("{}", extension);
   }
-  spdlog::info("");
 
   spdlog::info("Creating vk instance");
 
@@ -89,8 +104,8 @@ VkInstance setupVulkanInstance() {
       .pApplicationInfo = &appInfo,
       .enabledLayerCount = static_cast<uint32_t>(validationLayers.size()),
       .ppEnabledLayerNames = validationLayers.data(),
-      .enabledExtensionCount = extensionCount + 1,
-      .ppEnabledExtensionNames = extensions,
+      .enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
+      .ppEnabledExtensionNames = extensions.data(),
   };
 
   VkInstance instance;
@@ -144,9 +159,8 @@ VkSurfaceKHR createVulkanSurface(const VkInstance &instance,
   return surface;
 }
 
-VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
-                                   const VkSurfaceKHR &surface) {
-  float queuePriority = 1.0f;
+uint32_t getVulkanGraphicsQueueIndex(const VkPhysicalDevice &physicalDevice,
+                                     const VkSurfaceKHR &surface) {
   int32_t graphicsQueueIndex = -1;
 
   // https://github.com/KhronosGroup/Vulkan-Samples/blob/cc7b29696011e7499379695947b9e634ed61ea10/samples/api/hello_triangle/hello_triangle.cpp#L293
@@ -191,7 +205,12 @@ VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
   if (graphicsQueueIndex == -1) {
     throw std::runtime_error("Failed to find graphics queue");
   }
+  return static_cast<uint32_t>(graphicsQueueIndex);
+}
 
+VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
+                                   const uint32_t &graphicsQueueIndex) {
+  float queuePriority = 1.0f;
   // Create one queue
   VkDeviceQueueCreateInfo queueInfo = {
       .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
@@ -200,30 +219,35 @@ VkDevice createVulkanLogicalDevice(const VkPhysicalDevice &physicalDevice,
       .pQueuePriorities = &queuePriority,
   };
 
-  // uint32_t deviceExtensionCount;
-  // vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr,
-  //                                      &deviceExtensionCount, nullptr);
-  // std::vector<VkExtensionProperties> deviceExtensions(deviceExtensionCount);
-  // vkEnumerateDeviceExtensionProperties(
-  //     physicalDevice, nullptr, &deviceExtensionCount,
-  //     deviceExtensions.data());
-
-  const char *const requiredExtensions[2] = {"VK_KHR_swapchain",
-                                             "VK_KHR_portability_subset"};
+  std::array<const char *const, 3> requiredExtensions = {
+      "VK_KHR_swapchain", "VK_KHR_portability_subset",
+      "VK_KHR_dynamic_rendering"};
 
   // Create a logical device
   spdlog::info("Create a logical device...");
   VkDevice device;
+
+  VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeatures{
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR,
+      .dynamicRendering = VK_TRUE,
+  };
+
   VkDeviceCreateInfo deviceCreateInfo = {
       .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+      .pNext = &dynamicRenderingFeatures,
       .queueCreateInfoCount = 1,
       .pQueueCreateInfos = &queueInfo,
-      .enabledExtensionCount = 2,
-      .ppEnabledExtensionNames = requiredExtensions,
+      .enabledExtensionCount = requiredExtensions.size(),
+      .ppEnabledExtensionNames = requiredExtensions.data(),
   };
 
   VK_CHECK(vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device));
   spdlog::info("Created logical device");
+
+  // auto &requested_dynamic_rendering            =
+  // gpu.request_extension_features<VkPhysicalDeviceDynamicRenderingFeaturesKHR>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR);
+  // requested_dynamic_rendering.dynamicRendering = VK_TRUE;
+
   return device;
 }
 
@@ -439,25 +463,101 @@ createSwapchainImageViews(const VkDevice &device,
   return swapchainImageViews;
 }
 
+VkCommandPool createCommandPool(const VkDevice &logicalDevice,
+                                const uint32_t &graphicsQueueIndex) {
+  spdlog::info("Create command pool");
+  VkCommandPoolCreateInfo commandPoolCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+      .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+      .queueFamilyIndex = graphicsQueueIndex,
+  };
+  VkCommandPool commandPool;
+
+  VK_CHECK(vkCreateCommandPool(logicalDevice, &commandPoolCreateInfo, nullptr,
+                               &commandPool));
+  return commandPool;
+}
+
 int main() {
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
 
   VkInstance instance = setupVulkanInstance();
   VkPhysicalDevice physicalDevice = findGPU(instance);
+  enumerateExtensions(physicalDevice);
+
   VkSurfaceKHR surface = createVulkanSurface(instance, window);
-  VkDevice logicalDevice = createVulkanLogicalDevice(physicalDevice, surface);
+  uint32_t graphicsQueueIndex =
+      getVulkanGraphicsQueueIndex(physicalDevice, surface);
+  VkDevice logicalDevice =
+      createVulkanLogicalDevice(physicalDevice, graphicsQueueIndex);
   VkSurfaceCapabilitiesKHR surfaceCapabilities =
       getSurfaceCapabilities(physicalDevice, surface);
   VkSurfaceFormatKHR surfaceFormat =
       selectSwapchainFormat(physicalDevice, surface);
   VkSwapchainKHR swapchain = createSwapchain(
       logicalDevice, surface, surfaceCapabilities, surfaceFormat);
-  createSwapchainImageViews(logicalDevice, swapchain, surfaceFormat);
+  std::vector<VkImageView> swapchainImageViews =
+      createSwapchainImageViews(logicalDevice, swapchain, surfaceFormat);
+  VkCommandPool commandPool =
+      createCommandPool(logicalDevice, graphicsQueueIndex);
 
-  // while (!glfwWindowShouldClose(window)) {
-  //   glfwPollEvents();
-  // }
+  VkCommandBuffer commandBuffer;
+  VkCommandBufferAllocateInfo commandBufferAllocateInfo{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+      .commandPool = commandPool,
+      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+      .commandBufferCount = 1,
+  };
+
+  VK_CHECK(vkAllocateCommandBuffers(logicalDevice, &commandBufferAllocateInfo,
+                                    &commandBuffer));
+
+  spdlog::info("Check swapchain image view [0]");
+  spdlog::info("Size of swpachain image view variable is {}",
+               sizeof(swapchainImageViews[0]));
+  spdlog::info("Swapchain image view handle: {}",
+               reinterpret_cast<uint64_t>(swapchainImageViews[0]));
+
+  VkRenderingAttachmentInfo colorAttachmentInfo{
+      .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+      .imageView = swapchainImageViews[0],
+      .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+      .clearValue.color = {1.0f, 1.0f, 0.0f, 1.0f}};
+
+  spdlog::info("Current extent: {}x{}", surfaceCapabilities.currentExtent.width,
+               surfaceCapabilities.currentExtent.height);
+
+  VkRenderingInfo renderingInfo{
+      .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+      .renderArea =
+          {
+              .offset = {0, 0},
+              .extent = {surfaceCapabilities.currentExtent.width,
+                         surfaceCapabilities.currentExtent.height},
+          },
+      .layerCount = 1,
+      .colorAttachmentCount = 1,
+      .pColorAttachments = &colorAttachmentInfo,
+  };
+
+  VkCommandBufferBeginInfo commandBufferBeginInfo{
+      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+      .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+  };
+
+  VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
+
+  vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
+  vkCmdEndRenderingKHR(commandBuffer);
+
+  VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+  while (!glfwWindowShouldClose(window)) {
+    glfwPollEvents();
+  }
 
   return 0;
 }

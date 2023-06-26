@@ -17,9 +17,33 @@ target_link_libraries(Planet PRIVATE Vulkan::Vulkan)
 find_package(glfw3 3.3 REQUIRED)
 target_link_libraries(Planet PRIVATE glfw)
 
-if(MSVC)
-  target_compile_options(${TARGET_NAME} Planet PRIVATE /W4 /WX)
-else()
-  target_compile_options(${TARGET_NAME} Planet PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-c99-designator)
+
+# Needed to manually do this to get dynamic rendering to work
+# https://github.com/KhronosGroup/MoltenVK/issues/1810
+# Specify the path to your MoltenVK installation
+# Replace with actual path
+set(MOLTEN_VK_PATH "~/bar/MoltenVK")
+
+# Find MoltenVK library
+find_library(MOLTEN_VK_LIB MoltenVK PATHS ${MOLTEN_VK_PATH})
+
+if(NOT MOLTEN_VK_LIB)
+    message(FATAL_ERROR "MoltenVK library not found")
 endif()
+
+# Include MoltenVK headers
+target_include_directories(Planet PRIVATE ${MOLTEN_VK_PATH}/include)
+
+# Link MoltenVK library
+target_link_libraries(Planet PRIVATE ${MOLTEN_VK_LIB})
+
+
+
+target_compile_options(${TARGET_NAME} Planet PRIVATE -Wno-c99-designator)
+
+# if(MSVC)
+#   target_compile_options(${TARGET_NAME} Planet PRIVATE /W4 /WX)
+# else()
+#   target_compile_options(${TARGET_NAME} Planet PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-c99-designator)
+# endif()
 
