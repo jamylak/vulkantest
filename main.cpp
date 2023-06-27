@@ -119,6 +119,7 @@ VkInstance setupVulkanInstance() {
       // VK_LAYER_KHRONOS_validation seems to have a bug in dynamic rendering so
       // can't seem to enable it
       // "VK_LAYER_KHRONOS_validation",
+      // api dump
       "VK_LAYER_LUNARG_api_dump",
       // "VK_LAYER_LUNARG_parameter_validation",
       // "VK_LAYER_LUNARG_screenshot",
@@ -444,19 +445,17 @@ createSwapchain(const VkDevice &device, const VkSurfaceKHR &surface,
   return swapchain;
 }
 
-std::vector<VkImageView>
-createSwapchainImageViews(const VkDevice &device,
-                          const VkSwapchainKHR &swapchain,
-                          const VkSurfaceFormatKHR &surfaceFormat) {
+std::vector<VkImage> getSwapchainImages(const VkDevice &logicalDevice,
+                                        const VkSwapchainKHR &swapchain) {
   // Get swapchain images
   uint32_t swapchainImageCount;
-  VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount,
-                                   nullptr));
+  VK_CHECK(vkGetSwapchainImagesKHR(logicalDevice, swapchain,
+                                   &swapchainImageCount, nullptr));
   spdlog::info("Swapchain image count: {}", swapchainImageCount);
 
   std::vector<VkImage> swapchainImages(swapchainImageCount);
-  VK_CHECK(vkGetSwapchainImagesKHR(device, swapchain, &swapchainImageCount,
-                                   swapchainImages.data()));
+  VK_CHECK(vkGetSwapchainImagesKHR(
+      logicalDevice, swapchain, &swapchainImageCount, swapchainImages.data()));
   for (uint32_t i = 0; i < swapchainImageCount; i++) {
     spdlog::info("Swapchain image {}", i);
     // spdlog::info("Size of swpachain image variable is {}",
@@ -465,10 +464,16 @@ createSwapchainImageViews(const VkDevice &device,
     // spdlog::info("Swapchain image handle: {}",
     //              reinterpret_cast<uint64_t>(swapchainImages[i]));
   }
+  return swapchainImages;
+}
 
+std::vector<VkImageView>
+createSwapchainImageViews(const VkDevice &device,
+                          const std::vector<VkImage> &swapchainImages,
+                          const VkSurfaceFormatKHR &surfaceFormat) {
   // Create image views
-  std::vector<VkImageView> swapchainImageViews(swapchainImageCount);
-  for (uint32_t i = 0; i < swapchainImageCount; i++) {
+  std::vector<VkImageView> swapchainImageViews(swapchainImages.size());
+  for (uint32_t i = 0; i < swapchainImages.size(); i++) {
     VkImageViewCreateInfo imageViewCreateInfo{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
         .flags = 0,
@@ -525,7 +530,7 @@ VkCommandBuffer createCommandBuffer(const VkDevice &logicalDevice,
   return commandBuffer;
 }
 
-void renderScene(const VkImageView &imageView,
+void renderScene(const VkImage &image, const VkImageView &imageView,
                  const VkSurfaceCapabilitiesKHR surfaceCapabilities,
                  const VkCommandBuffer &commandBuffer,
                  const VkPipeline &pipeline) {
@@ -539,7 +544,7 @@ void renderScene(const VkImageView &imageView,
       .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-      .clearValue.color = {1.0f, 1.0f, 0.0f, 1.0f}};
+      .clearValue.color = {1.0f, 1.0f, 1.0f, 1.0f}};
 
   spdlog::info("Current extent: {}x{}", surfaceCapabilities.currentExtent.width,
                surfaceCapabilities.currentExtent.height);
@@ -566,22 +571,109 @@ void renderScene(const VkImageView &imageView,
 
   vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
 
+  VkImageMemoryBarrier imageMemoryBarrierDraw{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .srcAccessMask = 0,
+      .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+      .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = image,
+      .subresourceRange =
+          {
+              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+              .baseMipLevel = 0,
+              .levelCount = 1,
+              .baseArrayLayer = 0,
+              .layerCount = 1,
+          },
+  };
+
+  vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0,
+                       nullptr, 0, nullptr, 1, &imageMemoryBarrierDraw);
+
   vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
   vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+  VkImageMemoryBarrier imageMemoryBarrierPresent{
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+      .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT,
+      .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = image,
+      .subresourceRange =
+          {
+              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+              .baseMipLevel = 0,
+              .levelCount = 1,
+              .baseArrayLayer = 0,
+              .layerCount = 1,
+          },
+  };
+
+  vkCmdPipelineBarrier(commandBuffer,
+                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0,
+                       nullptr, 1, &imageMemoryBarrierPresent);
 
   vkCmdEndRenderingKHR(commandBuffer);
 
   VK_CHECK(vkEndCommandBuffer(commandBuffer));
 }
 
-void queueSubmit(const VkSwapchainKHR &swapchain, const VkQueue &queue) {
-  uint32_t imageIndex = 0;
+VkSemaphore createSemaphore(const VkDevice &logicalDevice) {
+  VkSemaphore semaphore;
+
+  VkSemaphoreCreateInfo semaphoreCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+  };
+
+  VK_CHECK(vkCreateSemaphore(logicalDevice, &semaphoreCreateInfo, nullptr,
+                             &semaphore));
+  return semaphore;
+};
+
+uint32_t acquireNextImage(const VkDevice &logicalDevice,
+                          const VkSemaphore &imageAvailableSemaphore,
+                          const VkSwapchainKHR &swapchain) {
+  // hardcoded for now
+  uint32_t imageIndex;
+  VK_CHECK(vkAcquireNextImageKHR(logicalDevice, swapchain, UINT64_MAX,
+                                 imageAvailableSemaphore, VK_NULL_HANDLE,
+                                 &imageIndex));
+  return imageIndex;
+}
+
+void queueSubmit(const VkCommandBuffer &commandBuffer,
+                 const VkSwapchainKHR &swapchain, const VkQueue &queue,
+                 const VkSemaphore &imageAvailableSemaphore,
+                 const VkSemaphore &renderingFinishedSemaphore,
+                 const uint32_t &imageIndex) {
+
+  std::array<VkPipelineStageFlags, 1> waitFlags = {
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+  VkSubmitInfo submitInfo{
+      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+      .waitSemaphoreCount = 1,
+      .pWaitSemaphores = &imageAvailableSemaphore,
+      .pWaitDstStageMask = waitFlags.data(),
+      .commandBufferCount = 1,
+      .pCommandBuffers = &commandBuffer,
+      .signalSemaphoreCount = 1,
+      .pSignalSemaphores = &renderingFinishedSemaphore,
+  };
+
+  VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+
   VkPresentInfoKHR presentInfo{
       .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-      .pNext = nullptr,
-      .waitSemaphoreCount = 0,
-      .pWaitSemaphores = nullptr,
+      .waitSemaphoreCount = 1,
+      .pWaitSemaphores = &renderingFinishedSemaphore,
       .swapchainCount = 1,
       .pSwapchains = &swapchain,
       .pImageIndices = &imageIndex,
@@ -631,7 +723,7 @@ VkPipeline createPipeline(const VkDevice &logicalDevice,
 
   VkPipelineRasterizationStateCreateInfo rasterizationStateCreateInfo{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-      .cullMode = VK_CULL_MODE_FRONT_BIT,
+      .cullMode = VK_CULL_MODE_NONE,
       .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
       .lineWidth = 1.0f,
   };
@@ -673,6 +765,7 @@ VkPipeline createPipeline(const VkDevice &logicalDevice,
   blendAttachment.colorWriteMask =
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  blendAttachment.blendEnable = VK_FALSE;
 
   VkPipelineColorBlendStateCreateInfo blend{
       VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO};
@@ -734,20 +827,28 @@ int main() {
       selectSwapchainFormat(physicalDevice, surface);
   VkSwapchainKHR swapchain = createSwapchain(
       logicalDevice, surface, surfaceCapabilities, surfaceFormat);
+  std::vector<VkImage> swapchainImages =
+      getSwapchainImages(logicalDevice, swapchain);
   std::vector<VkImageView> swapchainImageViews =
-      createSwapchainImageViews(logicalDevice, swapchain, surfaceFormat);
+      createSwapchainImageViews(logicalDevice, swapchainImages, surfaceFormat);
   VkCommandPool commandPool =
       createCommandPool(logicalDevice, graphicsQueueIndex);
   VkCommandBuffer commandBuffer =
       createCommandBuffer(logicalDevice, commandPool);
   VkPipeline pipeline = createPipeline(logicalDevice, surfaceCapabilities);
-  renderScene(swapchainImageViews[0], surfaceCapabilities, commandBuffer,
-              pipeline);
-
   // Create vkqueue
   VkQueue queue;
   vkGetDeviceQueue(logicalDevice, graphicsQueueIndex, 0, &queue);
-  queueSubmit(swapchain, queue);
+  VkSemaphore imageAvailableSemaphore = createSemaphore(logicalDevice);
+  VkSemaphore renderingFinishedSemaphore = createSemaphore(logicalDevice);
+  uint32_t imageIndex =
+      acquireNextImage(logicalDevice, imageAvailableSemaphore, swapchain);
+  spdlog::info("Image index: {}", imageIndex);
+  renderScene(swapchainImages[imageIndex], swapchainImageViews[imageIndex],
+              surfaceCapabilities, commandBuffer, pipeline);
+
+  queueSubmit(commandBuffer, swapchain, queue, imageAvailableSemaphore,
+              renderingFinishedSemaphore, imageIndex);
   // void
   //  VkSubmitInfo submitInfo{
   //      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,

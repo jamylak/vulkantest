@@ -40,6 +40,29 @@ target_include_directories(Planet PRIVATE ${MOLTEN_VK_PATH}/include)
 # Link MoltenVK library
 target_link_libraries(Planet PRIVATE ${MOLTEN_VK_LIB})
 
+add_custom_command(
+  OUTPUT ../shaders/fullscreenquad.spv
+  COMMAND glslangValidator -V ../shaders/fullscreenquad.vert -o ../shaders/fullscreenquad.spv
+  DEPENDS ../shaders/fullscreenquad.vert
+  COMMENT "Compiling fullscreenquad"
+)
+
+add_custom_target(
+  fullscreenquad ALL
+  DEPENDS ../shaders/fullscreenquad.spv
+)
+
+add_custom_command(
+  OUTPUT ../shaders/planet.spv
+  COMMAND glslangValidator -V ../shaders/planet.frag -o ../shaders/planet.spv
+  DEPENDS ../shaders/planet.frag
+  COMMENT "Compiling planet"
+)
+
+add_custom_target(
+  plan ALL
+  DEPENDS ../shaders/planet.spv
+)
 
 
 target_compile_options(${TARGET_NAME} Planet PRIVATE -Wno-c99-designator)
