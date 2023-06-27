@@ -115,8 +115,11 @@ VkInstance setupVulkanInstance() {
 
   // Enable validation layers
   // as a c++ std::array with the basic validation layer
-  static constexpr std::array<const char *, 2> validationLayers = {
-      "VK_LAYER_KHRONOS_validation", "VK_LAYER_LUNARG_api_dump",
+  static constexpr std::array<const char *, 1> validationLayers = {
+      // VK_LAYER_KHRONOS_validation seems to have a bug in dynamic rendering so
+      // can't seem to enable it
+      // "VK_LAYER_KHRONOS_validation",
+      "VK_LAYER_LUNARG_api_dump",
       // "VK_LAYER_LUNARG_parameter_validation",
       // "VK_LAYER_LUNARG_screenshot",
       // "VK_LAYER_LUNARG_core_validation",
@@ -563,10 +566,9 @@ void renderScene(const VkImageView &imageView,
 
   vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
 
-  // vkCmdDrawIndexed(commandBuffer, 3, 1, 0, 0, 0);
   vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
-  // vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+  vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
   vkCmdEndRenderingKHR(commandBuffer);
 
@@ -591,50 +593,6 @@ void queueSubmit(const VkSwapchainKHR &swapchain, const VkQueue &queue) {
 VkPipeline createPipeline(const VkDevice &logicalDevice,
                           const VkSurfaceCapabilitiesKHR &surfaceCapabilities) {
   spdlog::info("Create pipeline");
-
-  // // Vertex bindings an attributes for model rendering
-  // // Binding description
-  // std::vector<VkVertexInputBindingDescription> vertex_input_bindings = {
-  //     vkb::initializers::vertex_input_binding_description(0, sizeof(Vertex),
-  //     VK_VERTEX_INPUT_RATE_VERTEX),
-  // };
-  //
-  // // Attribute descriptions
-  // std::vector<VkVertexInputAttributeDescription> vertex_input_attributes = {
-  //     vkb::initializers::vertex_input_attribute_description(0, 0,
-  //     VK_FORMAT_R32G32B32_SFLOAT, 0),                        // Position
-  //     vkb::initializers::vertex_input_attribute_description(0, 1,
-  //     VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3),        // Normal
-  // };
-  //
-  // VkPipelineVertexInputStateCreateInfo vertex_input_state =
-  // vkb::initializers::pipeline_vertex_input_state_create_info();
-  // vertex_input_state.vertexBindingDescriptionCount        =
-  // static_cast<uint32_t>(vertex_input_bindings.size());
-  // vertex_input_state.pVertexBindingDescriptions           =
-  // vertex_input_bindings.data();
-  // vertex_input_state.vertexAttributeDescriptionCount      =
-  // static_cast<uint32_t>(vertex_input_attributes.size());
-  // vertex_input_state.pVertexAttributeDescriptions         =
-  // vertex_input_attributes.data();
-  //
-
-  // std::vector<VkVertexInputBindingDescription> vertexInputBindings = {
-  //     {
-  //         .binding = 0,
-  //         .stride = sizeof(glm::vec2),
-  //         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-  //     },
-  // };
-  //
-  // std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
-  //     {
-  //         .location = 0,
-  //         .binding = 0,
-  //         .format = VK_FORMAT_R32G32_SFLOAT,
-  //         .offset = 0,
-  //     },
-  // };
 
   // https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
   VkPipelineVertexInputStateCreateInfo emptyVertexInputStateCreateInfo{
