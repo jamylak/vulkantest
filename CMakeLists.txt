@@ -17,6 +17,9 @@ target_link_libraries(Planet PRIVATE Vulkan::Vulkan)
 find_package(glfw3 3.3 REQUIRED)
 target_link_libraries(Planet PRIVATE glfw)
 
+# /opt/homebrew/Cellar/glm/0.9.9.8/include/glm/
+# target_include_directories(Planet PRIVATE /usr/local/include/glm)
+
 
 # Needed to manually do this to get dynamic rendering to work
 # https://github.com/KhronosGroup/MoltenVK/issues/1810

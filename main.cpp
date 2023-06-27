@@ -7,6 +7,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <array>
+#include <glm/vec2.hpp>
 #include <spdlog/spdlog.h>
 #include <vulkan/vulkan.h>
 
@@ -523,7 +524,8 @@ VkCommandBuffer createCommandBuffer(const VkDevice &logicalDevice,
 
 void renderScene(const VkImageView &imageView,
                  const VkSurfaceCapabilitiesKHR surfaceCapabilities,
-                 const VkCommandBuffer &commandBuffer) {
+                 const VkCommandBuffer &commandBuffer,
+                 const VkPipeline &pipeline) {
   // spdlog::info("Check swapchain image view [0]");
   // spdlog::info("Swapchain image view handle: {}",
   //              reinterpret_cast<uint64_t>(swapchainImageViews[0]));
@@ -560,14 +562,80 @@ void renderScene(const VkImageView &imageView,
   VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
 
   vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
+
+  // vkCmdDrawIndexed(commandBuffer, 3, 1, 0, 0, 0);
+  vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+  // vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
   vkCmdEndRenderingKHR(commandBuffer);
 
   VK_CHECK(vkEndCommandBuffer(commandBuffer));
 }
 
+void queueSubmit(const VkSwapchainKHR &swapchain, const VkQueue &queue) {
+  uint32_t imageIndex = 0;
+  VkPresentInfoKHR presentInfo{
+      .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+      .pNext = nullptr,
+      .waitSemaphoreCount = 0,
+      .pWaitSemaphores = nullptr,
+      .swapchainCount = 1,
+      .pSwapchains = &swapchain,
+      .pImageIndices = &imageIndex,
+      .pResults = nullptr,
+  };
+  VK_CHECK(vkQueuePresentKHR(queue, &presentInfo));
+}
+
 VkPipeline createPipeline(const VkDevice &logicalDevice,
                           const VkSurfaceCapabilitiesKHR &surfaceCapabilities) {
   spdlog::info("Create pipeline");
+
+  // // Vertex bindings an attributes for model rendering
+  // // Binding description
+  // std::vector<VkVertexInputBindingDescription> vertex_input_bindings = {
+  //     vkb::initializers::vertex_input_binding_description(0, sizeof(Vertex),
+  //     VK_VERTEX_INPUT_RATE_VERTEX),
+  // };
+  //
+  // // Attribute descriptions
+  // std::vector<VkVertexInputAttributeDescription> vertex_input_attributes = {
+  //     vkb::initializers::vertex_input_attribute_description(0, 0,
+  //     VK_FORMAT_R32G32B32_SFLOAT, 0),                        // Position
+  //     vkb::initializers::vertex_input_attribute_description(0, 1,
+  //     VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3),        // Normal
+  // };
+  //
+  // VkPipelineVertexInputStateCreateInfo vertex_input_state =
+  // vkb::initializers::pipeline_vertex_input_state_create_info();
+  // vertex_input_state.vertexBindingDescriptionCount        =
+  // static_cast<uint32_t>(vertex_input_bindings.size());
+  // vertex_input_state.pVertexBindingDescriptions           =
+  // vertex_input_bindings.data();
+  // vertex_input_state.vertexAttributeDescriptionCount      =
+  // static_cast<uint32_t>(vertex_input_attributes.size());
+  // vertex_input_state.pVertexAttributeDescriptions         =
+  // vertex_input_attributes.data();
+  //
+
+  // std::vector<VkVertexInputBindingDescription> vertexInputBindings = {
+  //     {
+  //         .binding = 0,
+  //         .stride = sizeof(glm::vec2),
+  //         .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+  //     },
+  // };
+  //
+  // std::vector<VkVertexInputAttributeDescription> vertexInputAttributes = {
+  //     {
+  //         .location = 0,
+  //         .binding = 0,
+  //         .format = VK_FORMAT_R32G32_SFLOAT,
+  //         .offset = 0,
+  //     },
+  // };
+
   // https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
   VkPipelineVertexInputStateCreateInfo emptyVertexInputStateCreateInfo{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -714,9 +782,14 @@ int main() {
       createCommandPool(logicalDevice, graphicsQueueIndex);
   VkCommandBuffer commandBuffer =
       createCommandBuffer(logicalDevice, commandPool);
-  renderScene(swapchainImageViews[0], surfaceCapabilities, commandBuffer);
   VkPipeline pipeline = createPipeline(logicalDevice, surfaceCapabilities);
+  renderScene(swapchainImageViews[0], surfaceCapabilities, commandBuffer,
+              pipeline);
 
+  // Create vkqueue
+  VkQueue queue;
+  vkGetDeviceQueue(logicalDevice, graphicsQueueIndex, 0, &queue);
+  queueSubmit(swapchain, queue);
   // void
   //  VkSubmitInfo submitInfo{
   //      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
