@@ -514,20 +514,22 @@ VkCommandPool createCommandPool(const VkDevice &logicalDevice,
   return commandPool;
 }
 
-VkCommandBuffer createCommandBuffer(const VkDevice &logicalDevice,
-                                    const VkCommandPool &commandPool) {
+std::vector<VkCommandBuffer>
+createCommandBuffers(const VkDevice &logicalDevice,
+                     const VkCommandPool &commandPool,
+                     const uint32_t &commandBufferCount) {
+  std::vector<VkCommandBuffer> commandBuffers(commandBufferCount);
   spdlog::info("Create command buffer");
   VkCommandBufferAllocateInfo commandBufferAllocateInfo{
       .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
       .pNext = nullptr,
       .commandPool = commandPool,
       .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-      .commandBufferCount = 1,
+      .commandBufferCount = commandBufferCount,
   };
-  VkCommandBuffer commandBuffer;
   VK_CHECK(vkAllocateCommandBuffers(logicalDevice, &commandBufferAllocateInfo,
-                                    &commandBuffer));
-  return commandBuffer;
+                                    commandBuffers.data()));
+  return commandBuffers;
 }
 
 void renderScene(const VkImage &image, const VkImageView &imageView,
@@ -653,7 +655,7 @@ void queueSubmit(const VkCommandBuffer &commandBuffer,
                  const VkSwapchainKHR &swapchain, const VkQueue &queue,
                  const VkSemaphore &imageAvailableSemaphore,
                  const VkSemaphore &renderingFinishedSemaphore,
-                 const uint32_t &imageIndex) {
+                 const VkFence &fence, const uint32_t &imageIndex) {
 
   std::array<VkPipelineStageFlags, 1> waitFlags = {
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -668,7 +670,7 @@ void queueSubmit(const VkCommandBuffer &commandBuffer,
       .pSignalSemaphores = &renderingFinishedSemaphore,
   };
 
-  VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+  VK_CHECK(vkQueueSubmit(queue, 1, &submitInfo, fence));
 
   VkPresentInfoKHR presentInfo{
       .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -808,6 +810,21 @@ VkPipeline createPipeline(const VkDevice &logicalDevice,
   return pipeline;
 }
 
+std::vector<VkFence> createFences(const VkDevice &logicalDevice,
+                                  const uint32_t &count) {
+  std::vector<VkFence> fences(count);
+  for (uint32_t i = 0; i < count; i++) {
+    VkFenceCreateInfo fenceCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = static_cast<VkFenceCreateFlags>(
+            (i == 0) ? VK_FENCE_CREATE_SIGNALED_BIT : 0),
+    };
+    VK_CHECK(
+        vkCreateFence(logicalDevice, &fenceCreateInfo, nullptr, &fences[i]));
+  }
+  return fences;
+}
+
 int main() {
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
@@ -833,25 +850,41 @@ int main() {
       createSwapchainImageViews(logicalDevice, swapchainImages, surfaceFormat);
   VkCommandPool commandPool =
       createCommandPool(logicalDevice, graphicsQueueIndex);
-  VkCommandBuffer commandBuffer =
-      createCommandBuffer(logicalDevice, commandPool);
   VkPipeline pipeline = createPipeline(logicalDevice, surfaceCapabilities);
   // Create vkqueue
   VkQueue queue;
   vkGetDeviceQueue(logicalDevice, graphicsQueueIndex, 0, &queue);
-  VkSemaphore imageAvailableSemaphore = createSemaphore(logicalDevice);
-  VkSemaphore renderingFinishedSemaphore = createSemaphore(logicalDevice);
-  uint32_t imageIndex =
-      acquireNextImage(logicalDevice, imageAvailableSemaphore, swapchain);
-  spdlog::info("Image index: {}", imageIndex);
-  renderScene(swapchainImages[imageIndex], swapchainImageViews[imageIndex],
-              surfaceCapabilities, commandBuffer, pipeline);
 
-  queueSubmit(commandBuffer, swapchain, queue, imageAvailableSemaphore,
-              renderingFinishedSemaphore, imageIndex);
+  // Command buffers
+  std::vector<VkCommandBuffer> commandBuffers =
+      createCommandBuffers(logicalDevice, commandPool, swapchainImages.size());
 
+  // Create fences
+  std::vector<VkFence> fences =
+      createFences(logicalDevice, swapchainImages.size());
+
+  uint32_t currentImage = 0;
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
+
+    // Wait for the fence from the last frame before acquiring next image
+    vkWaitForFences(logicalDevice, 1, &fences[currentImage], VK_TRUE,
+                    UINT64_MAX);
+    vkResetFences(logicalDevice, 1, &fences[currentImage]);
+
+    VkSemaphore imageAvailableSemaphore = createSemaphore(logicalDevice);
+    VkSemaphore renderingFinishedSemaphore = createSemaphore(logicalDevice);
+    uint32_t imageIndex =
+        acquireNextImage(logicalDevice, imageAvailableSemaphore, swapchain);
+
+    spdlog::info("Image index: {}", imageIndex);
+    renderScene(swapchainImages[imageIndex], swapchainImageViews[imageIndex],
+                surfaceCapabilities, commandBuffers[imageIndex], pipeline);
+    vkWaitForFences(logicalDevice, 1, &fences[0], VK_TRUE, UINT64_MAX);
+
+    queueSubmit(commandBuffers[imageIndex], swapchain, queue,
+                imageAvailableSemaphore, renderingFinishedSemaphore,
+                fences[(imageIndex + 1) % fences.size()], imageIndex);
   }
 
   return 0;
