@@ -115,12 +115,12 @@ VkInstance setupVulkanInstance() {
 
   // Enable validation layers
   // as a c++ std::array with the basic validation layer
-  static constexpr std::array<const char *, 1> validationLayers = {
+  static constexpr std::array<const char *, 0> validationLayers = {
       // VK_LAYER_KHRONOS_validation seems to have a bug in dynamic rendering so
       // can't seem to enable it
       // "VK_LAYER_KHRONOS_validation",
       // api dump
-      "VK_LAYER_LUNARG_api_dump",
+      // "VK_LAYER_LUNARG_api_dump",
       // "VK_LAYER_LUNARG_parameter_validation",
       // "VK_LAYER_LUNARG_screenshot",
       // "VK_LAYER_LUNARG_core_validation",
@@ -639,6 +639,14 @@ VkSemaphore createSemaphore(const VkDevice &logicalDevice) {
                              &semaphore));
   return semaphore;
 };
+std::vector<VkSemaphore> createSemaphores(const VkDevice &logicalDevice,
+                                          const uint32_t &count) {
+  std::vector<VkSemaphore> semaphores(count);
+  for (auto &semaphore : semaphores) {
+    semaphore = createSemaphore(logicalDevice);
+  }
+  return semaphores;
+}
 
 uint32_t acquireNextImage(const VkDevice &logicalDevice,
                           const VkSemaphore &imageAvailableSemaphore,
@@ -826,6 +834,7 @@ std::vector<VkFence> createFences(const VkDevice &logicalDevice,
 }
 
 int main() {
+  spdlog::set_level(spdlog::level::err);
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
 
@@ -859,33 +868,71 @@ int main() {
   std::vector<VkCommandBuffer> commandBuffers =
       createCommandBuffers(logicalDevice, commandPool, swapchainImages.size());
 
-  // Create fences
+  // Create fences and semaphores
   std::vector<VkFence> fences =
       createFences(logicalDevice, swapchainImages.size());
+  std::vector<VkSemaphore> imageAvailableSemaphores =
+      createSemaphores(logicalDevice, swapchainImages.size());
+  std::vector<VkSemaphore> renderFinishedSemaphore =
+      createSemaphores(logicalDevice, swapchainImages.size());
 
   uint32_t currentImage = 0;
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
 
     // Wait for the fence from the last frame before acquiring next image
-    vkWaitForFences(logicalDevice, 1, &fences[currentImage], VK_TRUE,
-                    UINT64_MAX);
-    vkResetFences(logicalDevice, 1, &fences[currentImage]);
+    VK_CHECK(vkWaitForFences(logicalDevice, 1, &fences[currentImage], VK_TRUE,
+                             UINT64_MAX));
+    VK_CHECK(vkResetFences(logicalDevice, 1, &fences[currentImage]));
+    VK_CHECK(vkResetCommandBuffer(commandBuffers[currentImage], 0));
 
-    VkSemaphore imageAvailableSemaphore = createSemaphore(logicalDevice);
-    VkSemaphore renderingFinishedSemaphore = createSemaphore(logicalDevice);
-    uint32_t imageIndex =
-        acquireNextImage(logicalDevice, imageAvailableSemaphore, swapchain);
+    uint32_t imageIndex = acquireNextImage(
+        logicalDevice, imageAvailableSemaphores[currentImage], swapchain);
 
     spdlog::info("Image index: {}", imageIndex);
     renderScene(swapchainImages[imageIndex], swapchainImageViews[imageIndex],
                 surfaceCapabilities, commandBuffers[imageIndex], pipeline);
-    vkWaitForFences(logicalDevice, 1, &fences[0], VK_TRUE, UINT64_MAX);
-
     queueSubmit(commandBuffers[imageIndex], swapchain, queue,
-                imageAvailableSemaphore, renderingFinishedSemaphore,
+                imageAvailableSemaphores[currentImage],
+                renderFinishedSemaphore[currentImage],
                 fences[(imageIndex + 1) % fences.size()], imageIndex);
+
+    currentImage = (currentImage + 1) % swapchainImages.size();
+
+    /*
+     * DEBUG
+      break;
+    }
+    while (!glfwWindowShouldClose(window)) {
+      glfwPollEvents();
+    */
   }
+
+  // Free command buffers
+  // TODO
+
+  // Cleanup after the main loop
+  for (auto &semaphore : imageAvailableSemaphores) {
+    vkDestroySemaphore(logicalDevice, semaphore, nullptr);
+  }
+  for (auto &semaphore : renderFinishedSemaphore) {
+    vkDestroySemaphore(logicalDevice, semaphore, nullptr);
+  }
+  for (auto &fence : fences) {
+    vkDestroyFence(logicalDevice, fence, nullptr);
+  }
+  for (auto &imageView : swapchainImageViews) {
+    vkDestroyImageView(logicalDevice, imageView, nullptr);
+  }
+  vkDestroySwapchainKHR(logicalDevice, swapchain, nullptr);
+  vkDestroyCommandPool(logicalDevice, commandPool, nullptr);
+  vkDestroyPipeline(logicalDevice, pipeline, nullptr);
+  vkDestroyDevice(logicalDevice, nullptr);
+  vkDestroySurfaceKHR(instance, surface, nullptr);
+  vkDestroyInstance(instance, nullptr);
+
+  glfwDestroyWindow(window);
+  glfwTerminate();
 
   return 0;
 }
