@@ -564,13 +564,6 @@ void renderScene(const VkImage &image, const VkImageView &imageView,
       .pColorAttachments = &colorAttachmentInfo,
   };
 
-  VkCommandBufferBeginInfo commandBufferBeginInfo{
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-      .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
-  };
-
-  VK_CHECK(vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo));
-
   vkCmdBeginRenderingKHR(commandBuffer, &renderingInfo);
 
   VkImageMemoryBarrier imageMemoryBarrierDraw{
@@ -624,8 +617,6 @@ void renderScene(const VkImage &image, const VkImageView &imageView,
                        nullptr, 1, &imageMemoryBarrierPresent);
 
   vkCmdEndRenderingKHR(commandBuffer);
-
-  VK_CHECK(vkEndCommandBuffer(commandBuffer));
 }
 
 VkSemaphore createSemaphore(const VkDevice &logicalDevice) {
@@ -833,6 +824,19 @@ std::vector<VkFence> createFences(const VkDevice &logicalDevice,
   return fences;
 }
 
+VkQueryPool createQueryPool(const VkDevice &logicalDevice,
+                            const uint32_t &queryCount) {
+  VkQueryPoolCreateInfo queryPoolCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
+      .queryType = VK_QUERY_TYPE_TIMESTAMP,
+      .queryCount = queryCount,
+  };
+  VkQueryPool queryPool;
+  VK_CHECK(vkCreateQueryPool(logicalDevice, &queryPoolCreateInfo, nullptr,
+                             &queryPool));
+  return queryPool;
+}
+
 int main() {
   spdlog::set_level(spdlog::level::err);
   initGLFW();
@@ -840,6 +844,8 @@ int main() {
 
   VkInstance instance = setupVulkanInstance();
   VkPhysicalDevice physicalDevice = findGPU(instance);
+  VkPhysicalDeviceProperties deviceProperties;
+  vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
   enumerateExtensions(physicalDevice);
 
   VkSurfaceKHR surface = createVulkanSurface(instance, window);
@@ -876,8 +882,13 @@ int main() {
   std::vector<VkSemaphore> renderFinishedSemaphore =
       createSemaphores(logicalDevice, swapchainImages.size());
 
+  auto queryPool = createQueryPool(logicalDevice, 2 * swapchainImages.size());
+
   uint32_t currentImage = 0;
+  std::chrono::high_resolution_clock::time_point cpuStart, cpuEnd;
   while (!glfwWindowShouldClose(window)) {
+    cpuStart = std::chrono::high_resolution_clock::now();
+
     glfwPollEvents();
 
     // Wait for the fence from the last frame before acquiring next image
@@ -890,12 +901,61 @@ int main() {
         logicalDevice, imageAvailableSemaphores[currentImage], swapchain);
 
     spdlog::info("Image index: {}", imageIndex);
+
+    VkCommandBufferBeginInfo commandBufferBeginInfo{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+    };
+
+    VK_CHECK(vkBeginCommandBuffer(commandBuffers[imageIndex],
+                                  &commandBufferBeginInfo));
+    // Start GPU Timestamp
+    vkCmdResetQueryPool(commandBuffers[currentImage], queryPool,
+                        currentImage * 2, 2);
+
+    vkCmdWriteTimestamp(commandBuffers[imageIndex],
+                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queryPool,
+                        currentImage * 2);
     renderScene(swapchainImages[imageIndex], swapchainImageViews[imageIndex],
                 surfaceCapabilities, commandBuffers[imageIndex], pipeline);
+
+    vkCmdWriteTimestamp(commandBuffers[imageIndex],
+                        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool,
+                        currentImage * 2 + 1);
+    VK_CHECK(vkEndCommandBuffer(commandBuffers[imageIndex]));
     queueSubmit(commandBuffers[imageIndex], swapchain, queue,
                 imageAvailableSemaphores[currentImage],
                 renderFinishedSemaphore[currentImage],
                 fences[(imageIndex + 1) % fences.size()], imageIndex);
+
+    cpuEnd = std::chrono::high_resolution_clock::now();
+
+    // Get Gpu time
+    uint64_t gpuBegin, gpuEnd = 0;
+    uint64_t times[2];
+    spdlog::info("Waiting for GPU");
+
+    // bad?
+    // VK_CHECK(vkDeviceWaitIdle(logicalDevice));
+
+    VK_CHECK(vkGetQueryPoolResults(
+        logicalDevice, queryPool, currentImage * 2, 2, sizeof(uint64_t) * 2,
+        &times, sizeof(uint64_t),
+        VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
+
+    int totalCpuTime =
+        std::chrono::duration_cast<std::chrono::milliseconds>(cpuEnd - cpuStart)
+            .count();
+    double totalGpuTime =
+        (times[1] - times[0]) * deviceProperties.limits.timestampPeriod * 1e-6;
+    //
+    // std::string title = fmt::format(
+    //     "CPU: {:d}ms  GPU B: {:.3f}ms GPU E: {:.3f}ms", totalCpuTime,
+    //     times[0] * deviceProperties.limits.timestampPeriod * 1e-6,
+    //     times[1] * deviceProperties.limits.timestampPeriod * 1e-6);
+    std::string title =
+        fmt::format("CPU: {:d}ms  GPU: {:.3f}ms", totalCpuTime, totalGpuTime);
+    glfwSetWindowTitle(window, title.c_str());
 
     currentImage = (currentImage + 1) % swapchainImages.size();
 
