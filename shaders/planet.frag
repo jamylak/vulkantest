@@ -11,11 +11,11 @@ vec4 rayMarch(vec3 ro, vec3 rd) {
     float totalDist = 0.0;
     vec3 pos;
 
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < 1000; i++) {
         pos = ro + totalDist * rd;
         float dist = sdfSphere(pos, 0.2);
 
-        if (dist < 0.0001) {
+        if (dist < 0.01) {
             vec3 sphereCol = vec3(0.8, 0.6, 0.7);
             return vec4(sphereCol - totalDist, 1.0); // sphere colour
         }
@@ -31,9 +31,11 @@ void main()
     vec2 uv = TexCoord * 2.0 - 1.0;
 
     // Camera settings
-    vec3 cameraPos = vec3(0.0, -0.1, 0.7);
+    vec3 cameraPos = vec3(0.0, -0.0, 0.5);
 
     // Create ray direction from screen coordinates
-    vec3 rayDir = normalize(vec3(uv, -1.3));
+    vec3 rayDir = normalize(vec3(uv, -0.8));
+    // vec3 rayDir = vec3(uv, 0.7);
+
     color = rayMarch(cameraPos, rayDir);
 }

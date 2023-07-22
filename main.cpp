@@ -849,12 +849,6 @@ int main() {
 
   queueSubmit(commandBuffer, swapchain, queue, imageAvailableSemaphore,
               renderingFinishedSemaphore, imageIndex);
-  // void
-  //  VkSubmitInfo submitInfo{
-  //      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-  //      .commandBufferCount = 1,
-  //      .pCommandBuffers = &commandBuffer,
-  //  };
 
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
