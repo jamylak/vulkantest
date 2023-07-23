@@ -19,6 +19,9 @@ vec4 rayMarch(vec3 ro, vec3 rd) {
             vec3 sphereCol = vec3(0.8, 0.6, 0.7);
             return vec4(sphereCol - totalDist, 1.0); // sphere colour
         }
+        if (dist > 20.0) {
+            break;
+        }
         totalDist += dist;
     }
     return vec4(0.3); // background colour
@@ -29,6 +32,7 @@ void main()
 {
     // normalize to [-1, 1]
     vec2 uv = TexCoord * 2.0 - 1.0;
+    uv.x *= 1.4;
 
     // Camera settings
     vec3 cameraPos = vec3(0.0, -0.0, 0.5);
@@ -38,4 +42,5 @@ void main()
     // vec3 rayDir = vec3(uv, 0.7);
 
     color = rayMarch(cameraPos, rayDir);
+    // color = vec4(uv, 0.0, 1.0);
 }
