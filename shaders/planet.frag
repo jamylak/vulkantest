@@ -14,6 +14,7 @@ layout (location = 0) out vec4 color;
 #define iResolution pc.iResolution
 #define iFrame pc.iFrame
 #define PI 3.1415926
+#define AA 1  // Set AA to 1 if your machine is too slow
 
 // https://www.shadertoy.com/view/3lsSzf
 
@@ -39,13 +40,6 @@ layout (location = 0) out vec4 color;
 // long): https://www.youtube.com/watch?v=Cfe5UQ-1L9Q
 //
 // Buy a metal print here: https://www.redbubble.com/i/metal-print/Happy-Jumping-by-InigoQuilez/43594745.0JXQP
-
-
-#if HW_PERFORMANCE==0
-#define AA 1
-#else
-#define AA 2  // Set AA to 1 if your machine is too slow
-#endif
 
 
 //------------------------------------------------------------------
@@ -478,7 +472,7 @@ void main()
         
         // time coordinate (motion blurred, shutter=0.5)
         // see https://www.shadertoy.com/view/4sBGD1
-        float d = 0.5+0.5*sin(TexCoord.x*147.0)*sin(fragCoord.y*131.0);
+        float d = 0.5+0.5*sin(TexCoord.x*147.0)*sin(TexCoord.y*131.0);
         float time = iTime - 0.5*(1.0/24.0)*(float(m*AA+n)+d)/float(AA*AA);
 #else    
         vec2 p = TexCoord * 2.0 - 1.0;
