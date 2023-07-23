@@ -538,7 +538,8 @@ void renderScene(
     const VkSurfaceCapabilitiesKHR surfaceCapabilities,
     const VkCommandBuffer &commandBuffer, const VkPipeline &pipeline,
     const VkPipelineLayout &pipelineLayout,
-    const std::chrono::high_resolution_clock::time_point &progStartT) {
+    const std::chrono::high_resolution_clock::time_point &progStartT,
+    const int iFrame) {
   // spdlog::info("Check swapchain image view [0]");
   // spdlog::info("Swapchain image view handle: {}",
   //              reinterpret_cast<uint64_t>(swapchainImageViews[0]));
@@ -600,8 +601,21 @@ void renderScene(
                                                                      progStartT)
                     .count() *
                 1e-9;
+  struct PushConstants {
+    float iTime;
+    int iFrame;
+    glm::vec2 iResolution;
+  } pushConstants;
+
+  pushConstants.iTime = iTime;
+  pushConstants.iFrame = iFrame;
+  pushConstants.iResolution =
+      glm::vec2{surfaceCapabilities.currentExtent.width,
+                surfaceCapabilities.currentExtent.height};
+
   vkCmdPushConstants(commandBuffer, pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float), &iTime);
+                     VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants),
+                     &pushConstants);
 
   vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -913,6 +927,7 @@ int main() {
   auto queryPool = createQueryPool(logicalDevice, 2 * swapchainImages.size());
 
   uint32_t currentImage = 0;
+  int iFrame = 0;
   std::chrono::high_resolution_clock::time_point cpuStart, cpuEnd;
   while (!glfwWindowShouldClose(window)) {
     cpuStart = std::chrono::high_resolution_clock::now();
@@ -946,7 +961,7 @@ int main() {
                         currentImage * 2);
     renderScene(swapchainImages[imageIndex], swapchainImageViews[imageIndex],
                 surfaceCapabilities, commandBuffers[imageIndex], pipeline,
-                pipelineLayout, progStartT);
+                pipelineLayout, progStartT, iFrame);
 
     vkCmdWriteTimestamp(commandBuffers[imageIndex],
                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool,
@@ -988,6 +1003,7 @@ int main() {
     glfwSetWindowTitle(window, title.c_str());
 
     currentImage = (currentImage + 1) % swapchainImages.size();
+    iFrame++;
 
     /*
      * DEBUG
