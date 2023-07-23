@@ -15,7 +15,7 @@
 #define VK_CHECK(x)                                                            \
   do {                                                                         \
     VkResult err = x;                                                          \
-    spdlog::info("VkResult: {}", static_cast<int>(err));                       \
+    /*spdlog::info("VkResult: {}", static_cast<int>(err));*/                   \
     if (err) {                                                                 \
       spdlog::error("Detected Vulkan error: {}", static_cast<int>(err));       \
       throw std::runtime_error("Got a runtime_error");                         \
@@ -552,8 +552,9 @@ void renderScene(
       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
       .clearValue.color = {1.0f, 1.0f, 1.0f, 1.0f}};
 
-  spdlog::info("Current extent: {}x{}", surfaceCapabilities.currentExtent.width,
-               surfaceCapabilities.currentExtent.height);
+  // spdlog::info("Current extent: {}x{}",
+  // surfaceCapabilities.currentExtent.width,
+  //              surfaceCapabilities.currentExtent.height);
 
   VkRenderingInfo renderingInfo{
       .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
@@ -616,6 +617,24 @@ void renderScene(
   vkCmdPushConstants(commandBuffer, pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants),
                      &pushConstants);
+
+  VkRect2D scissor{
+      .offset = {0, 0},
+      .extent = {surfaceCapabilities.currentExtent.width,
+                 surfaceCapabilities.currentExtent.height},
+  };
+
+  VkViewport viewport{
+      .x = 0.0f,
+      .y = 0.0f,
+      .width = static_cast<float>(surfaceCapabilities.currentExtent.width),
+      .height = static_cast<float>(surfaceCapabilities.currentExtent.height),
+      .minDepth = 0.0f,
+      .maxDepth = 1.0f,
+  };
+
+  vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+  vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
   vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -766,27 +785,10 @@ VkPipeline createPipeline(const VkDevice &logicalDevice,
       .lineWidth = 1.0f,
   };
 
-  VkRect2D scissor{
-      .offset = {0, 0},
-      .extent = {surfaceCapabilities.currentExtent.width,
-                 surfaceCapabilities.currentExtent.height},
-  };
-
-  VkViewport viewport{
-      .x = 0.0f,
-      .y = 0.0f,
-      .width = static_cast<float>(surfaceCapabilities.currentExtent.width),
-      .height = static_cast<float>(surfaceCapabilities.currentExtent.height),
-      .minDepth = 0.0f,
-      .maxDepth = 1.0f,
-  };
-
   VkPipelineViewportStateCreateInfo viewportStateCreateInfo{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
       .viewportCount = 1,
-      .pViewports = &viewport,
       .scissorCount = 1,
-      .pScissors = &scissor,
   };
 
   VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo{
@@ -816,13 +818,23 @@ VkPipeline createPipeline(const VkDevice &logicalDevice,
 
   VkFormat defaultFormat = VK_FORMAT_R8G8B8A8_SRGB;
 
+  VkDynamicState dynamicStates[] = {
+      VK_DYNAMIC_STATE_VIEWPORT,
+      VK_DYNAMIC_STATE_SCISSOR,
+  };
+  VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+      .dynamicStateCount = 2,
+      .pDynamicStates = dynamicStates,
+  };
+
   // for dynamic rendering
   VkPipelineRenderingCreateInfoKHR dynamicPipelineCreate{
       VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR};
-  dynamicPipelineCreate.pNext = VK_NULL_HANDLE;
   dynamicPipelineCreate.colorAttachmentCount = 1;
   dynamicPipelineCreate.pColorAttachmentFormats = &defaultFormat;
   dynamicPipelineCreate.depthAttachmentFormat = VK_FORMAT_D16_UNORM;
+  // dynamicPipelineCreate.pNext = &dynamicStateCreateInfo;
 
   VkGraphicsPipelineCreateInfo pipelineCreateInfo{
       .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -836,6 +848,7 @@ VkPipeline createPipeline(const VkDevice &logicalDevice,
       .pMultisampleState = &multisampleStateCreateInfo,
       .pDepthStencilState = &depthStencil,
       .pColorBlendState = &blend,
+      .pDynamicState = &dynamicStateCreateInfo,
       .layout = pipelineLayout,
   };
   spdlog::info("Create the graphics pipeline");
@@ -878,9 +891,21 @@ int main() {
   std::chrono::high_resolution_clock::time_point progStartT;
   progStartT = std::chrono::high_resolution_clock::now();
 
-  spdlog::set_level(spdlog::level::err);
+  spdlog::set_level(spdlog::level::info);
+  // spdlog::set_level(spdlog::level::err);
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
+  bool framebufferResized = false;
+
+  glfwSetWindowUserPointer(window, &framebufferResized);
+
+  glfwSetFramebufferSizeCallback(
+      window, [](GLFWwindow *window, int width, int height) {
+        bool *framebufferResized =
+            static_cast<bool *>(glfwGetWindowUserPointer(window));
+        *framebufferResized = true;
+        spdlog::info("Framebuffer resized to {}x{}", width, height);
+      });
 
   VkInstance instance = setupVulkanInstance();
   VkPhysicalDevice physicalDevice = findGPU(instance);
@@ -931,19 +956,41 @@ int main() {
   std::chrono::high_resolution_clock::time_point cpuStart, cpuEnd;
   while (!glfwWindowShouldClose(window)) {
     cpuStart = std::chrono::high_resolution_clock::now();
-
     glfwPollEvents();
+    if (framebufferResized) {
+      VK_CHECK(vkDeviceWaitIdle(logicalDevice));
+      for (auto &imageView : swapchainImageViews)
+        vkDestroyImageView(logicalDevice, imageView, nullptr);
+      vkDestroySwapchainKHR(logicalDevice, swapchain, nullptr);
+      for (auto &fence : fences) {
+        vkDestroyFence(logicalDevice, fence, nullptr);
+      }
+
+      surfaceCapabilities = getSurfaceCapabilities(physicalDevice, surface);
+      surfaceFormat = selectSwapchainFormat(physicalDevice, surface);
+      swapchain = createSwapchain(logicalDevice, surface, surfaceCapabilities,
+                                  surfaceFormat);
+      swapchainImages = getSwapchainImages(logicalDevice, swapchain);
+      swapchainImageViews = createSwapchainImageViews(
+          logicalDevice, swapchainImages, surfaceFormat);
+
+      fences = createFences(logicalDevice, swapchainImages.size());
+      currentImage = 0;
+      framebufferResized = false;
+
+      continue;
+    }
 
     // Wait for the fence from the last frame before acquiring next image
     VK_CHECK(vkWaitForFences(logicalDevice, 1, &fences[currentImage], VK_TRUE,
                              UINT64_MAX));
     VK_CHECK(vkResetFences(logicalDevice, 1, &fences[currentImage]));
-    VK_CHECK(vkResetCommandBuffer(commandBuffers[currentImage], 0));
 
     uint32_t imageIndex = acquireNextImage(
         logicalDevice, imageAvailableSemaphores[currentImage], swapchain);
+    VK_CHECK(vkResetCommandBuffer(commandBuffers[imageIndex], 0));
 
-    spdlog::info("Image index: {}", imageIndex);
+    // spdlog::info("Image index: {}", imageIndex);
 
     VkCommandBufferBeginInfo commandBufferBeginInfo{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -977,7 +1024,6 @@ int main() {
     // Get Gpu time
     uint64_t gpuBegin, gpuEnd = 0;
     uint64_t times[2];
-    spdlog::info("Waiting for GPU");
 
     // bad?
     // VK_CHECK(vkDeviceWaitIdle(logicalDevice));
