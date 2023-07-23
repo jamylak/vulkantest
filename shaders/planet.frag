@@ -1,5 +1,8 @@
 #version 450
 
+layout (push_constant) uniform PushConstants {
+    float iTime;
+} pc;
 layout (location = 0) in vec2 TexCoord;
 layout (location = 0) out vec4 color;
 
@@ -7,13 +10,19 @@ float sdfSphere(vec3 pos, float radius) {
     return length(pos) - radius;
 }
 
+float map (vec3 pos) {
+    vec3 q = vec3(pc.iTime * 0.01, 0.0, 0.0);
+    float d = sdfSphere(pos + q, 0.2);
+    return d;
+}
+
 vec4 rayMarch(vec3 ro, vec3 rd) {
     float totalDist = 0.0;
     vec3 pos;
 
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 100; i++) {
         pos = ro + totalDist * rd;
-        float dist = sdfSphere(pos, 0.2);
+        float dist = map(pos);
 
         if (dist < 0.01) {
             vec3 sphereCol = vec3(0.8, 0.6, 0.7);

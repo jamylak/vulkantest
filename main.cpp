@@ -1,4 +1,5 @@
 #include <_types/_uint64_t.h>
+#include <chrono>
 #include <fstream>
 #include <stdexcept>
 #include <stdint.h>
@@ -532,10 +533,12 @@ createCommandBuffers(const VkDevice &logicalDevice,
   return commandBuffers;
 }
 
-void renderScene(const VkImage &image, const VkImageView &imageView,
-                 const VkSurfaceCapabilitiesKHR surfaceCapabilities,
-                 const VkCommandBuffer &commandBuffer,
-                 const VkPipeline &pipeline) {
+void renderScene(
+    const VkImage &image, const VkImageView &imageView,
+    const VkSurfaceCapabilitiesKHR surfaceCapabilities,
+    const VkCommandBuffer &commandBuffer, const VkPipeline &pipeline,
+    const VkPipelineLayout &pipelineLayout,
+    const std::chrono::high_resolution_clock::time_point &progStartT) {
   // spdlog::info("Check swapchain image view [0]");
   // spdlog::info("Swapchain image view handle: {}",
   //              reinterpret_cast<uint64_t>(swapchainImageViews[0]));
@@ -589,6 +592,16 @@ void renderScene(const VkImage &image, const VkImageView &imageView,
                        nullptr, 0, nullptr, 1, &imageMemoryBarrierDraw);
 
   vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+
+  std::chrono::high_resolution_clock::time_point currentT =
+      std::chrono::high_resolution_clock::now();
+
+  float iTime = std::chrono::duration_cast<std::chrono::nanoseconds>(currentT -
+                                                                     progStartT)
+                    .count() *
+                1e-9;
+  vkCmdPushConstants(commandBuffer, pipelineLayout,
+                     VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float), &iTime);
 
   vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
@@ -683,11 +696,31 @@ void queueSubmit(const VkCommandBuffer &commandBuffer,
   VK_CHECK(vkQueuePresentKHR(queue, &presentInfo));
 }
 
+VkPipelineLayout createPipelineLayout(const VkDevice &logicalDevice) {
+  // https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
+
+  VkPushConstantRange pushConstantRange{};
+  pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  pushConstantRange.offset = 0;
+  pushConstantRange.size = sizeof(float);
+
+  VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      .setLayoutCount = 0,
+      .pSetLayouts = nullptr,
+      .pushConstantRangeCount = 1,
+      .pPushConstantRanges = &pushConstantRange,
+  };
+  VkPipelineLayout pipelineLayout;
+  VK_CHECK(vkCreatePipelineLayout(logicalDevice, &pipelineLayoutCreateInfo,
+                                  nullptr, &pipelineLayout));
+  return pipelineLayout;
+}
+
 VkPipeline createPipeline(const VkDevice &logicalDevice,
+                          const VkPipelineLayout &pipelineLayout,
                           const VkSurfaceCapabilitiesKHR &surfaceCapabilities) {
   spdlog::info("Create pipeline");
-
-  // https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
   VkPipelineVertexInputStateCreateInfo emptyVertexInputStateCreateInfo{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
       .vertexBindingDescriptionCount = 0,
@@ -695,16 +728,6 @@ VkPipeline createPipeline(const VkDevice &logicalDevice,
       .vertexAttributeDescriptionCount = 0,
       .pVertexAttributeDescriptions = nullptr,
   };
-  VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo{
-      .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-      .setLayoutCount = 0,
-      .pSetLayouts = nullptr,
-      .pushConstantRangeCount = 0,
-      .pPushConstantRanges = nullptr,
-  };
-  VkPipelineLayout pipelineLayout;
-  VK_CHECK(vkCreatePipelineLayout(logicalDevice, &pipelineLayoutCreateInfo,
-                                  nullptr, &pipelineLayout));
 
   std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages{};
 
@@ -838,6 +861,9 @@ VkQueryPool createQueryPool(const VkDevice &logicalDevice,
 }
 
 int main() {
+  std::chrono::high_resolution_clock::time_point progStartT;
+  progStartT = std::chrono::high_resolution_clock::now();
+
   spdlog::set_level(spdlog::level::err);
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
@@ -865,7 +891,9 @@ int main() {
       createSwapchainImageViews(logicalDevice, swapchainImages, surfaceFormat);
   VkCommandPool commandPool =
       createCommandPool(logicalDevice, graphicsQueueIndex);
-  VkPipeline pipeline = createPipeline(logicalDevice, surfaceCapabilities);
+  VkPipelineLayout pipelineLayout = createPipelineLayout(logicalDevice);
+  VkPipeline pipeline =
+      createPipeline(logicalDevice, pipelineLayout, surfaceCapabilities);
   // Create vkqueue
   VkQueue queue;
   vkGetDeviceQueue(logicalDevice, graphicsQueueIndex, 0, &queue);
@@ -917,7 +945,8 @@ int main() {
                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queryPool,
                         currentImage * 2);
     renderScene(swapchainImages[imageIndex], swapchainImageViews[imageIndex],
-                surfaceCapabilities, commandBuffers[imageIndex], pipeline);
+                surfaceCapabilities, commandBuffers[imageIndex], pipeline,
+                pipelineLayout, progStartT);
 
     vkCmdWriteTimestamp(commandBuffers[imageIndex],
                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool,
