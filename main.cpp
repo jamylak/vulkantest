@@ -117,8 +117,8 @@ VkInstance setupVulkanInstance() {
   // Enable validation layers
   // as a c++ std::array with the basic validation layer
   static constexpr std::array<const char *, 0> validationLayers = {
-      // VK_LAYER_KHRONOS_validation seems to have a bug in dynamic rendering so
-      // can't seem to enable it
+      // VK_LAYER_KHRONOS_validation seems to have a bug in dynamic rendering
+      // (at least through moltenvk) so can't seem to enable it
       // "VK_LAYER_KHRONOS_validation",
       // api dump
       // "VK_LAYER_LUNARG_api_dump",
