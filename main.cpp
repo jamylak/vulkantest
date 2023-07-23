@@ -943,9 +943,10 @@ int main() {
         &times, sizeof(uint64_t),
         VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT));
 
-    int totalCpuTime =
-        std::chrono::duration_cast<std::chrono::milliseconds>(cpuEnd - cpuStart)
-            .count();
+    double totalCpuTime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(cpuEnd - cpuStart)
+            .count() *
+        1e-6;
     double totalGpuTime =
         (times[1] - times[0]) * deviceProperties.limits.timestampPeriod * 1e-6;
     //
@@ -954,7 +955,7 @@ int main() {
     //     times[0] * deviceProperties.limits.timestampPeriod * 1e-6,
     //     times[1] * deviceProperties.limits.timestampPeriod * 1e-6);
     std::string title =
-        fmt::format("CPU: {:d}ms  GPU: {:.3f}ms", totalCpuTime, totalGpuTime);
+        fmt::format("CPU: {:.3f}ms  GPU: {:.3f}ms", totalCpuTime, totalGpuTime);
     glfwSetWindowTitle(window, title.c_str());
 
     currentImage = (currentImage + 1) % swapchainImages.size();
