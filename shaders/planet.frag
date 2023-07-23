@@ -472,7 +472,7 @@ void main()
         // pixel coordinates
         vec2 o = vec2(float(m),float(n)) / float(AA) - 0.5;
         vec2 p = TexCoord * 2.0 - 1.0;
-        p.x *= 1.4;
+        p.x *= iResolution.x/iResolution.y;
         // Flip the y coordinates upside down
         p.y *= -1.0;
         
@@ -482,7 +482,7 @@ void main()
         float time = iTime - 0.5*(1.0/24.0)*(float(m*AA+n)+d)/float(AA*AA);
 #else    
         vec2 p = TexCoord * 2.0 - 1.0;
-        p.x *= 1.4;
+        p.x *= iResolution.x/iResolution.y;
         p.y *= -1.0;
         float time = iTime;
 #endif
