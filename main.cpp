@@ -969,7 +969,8 @@ int main() {
   }
 
   // Free command buffers
-  // TODO
+  vkFreeCommandBuffers(logicalDevice, commandPool, commandBuffers.size(),
+                       commandBuffers.data());
 
   // Cleanup after the main loop
   for (auto &semaphore : imageAvailableSemaphores) {
