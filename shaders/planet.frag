@@ -57,12 +57,23 @@ float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
 	return length( pa - ba*h ) - r;
 }
 
+vec2 opU( vec2 d1, vec2 d2 )
+{
+	return (d1.x<d2.x) ? d1 : d2;
+}
+
 //------------------------------------------------------------------
 
 vec2 map( in vec3 pos )
 {
-    float d = length(pos + vec3(.0, -.2, .0)) - 0.2;
-    vec2 res = vec2(d, 0.0 );
+    vec2 res = vec2(1000.0, 0.0);
+
+
+    res = opU(res, vec2(sdSphere(pos + vec3(.0, -.5, .0), 0.3), 2.0));
+    res = opU(res, vec2(sdSphere(pos + vec3(.1, -.7, .0), 0.1), 3.0));
+
+    // d = min(s1, s2);
+    // vec2 res = vec2(d, 2.8 );
     
     return res;
 }
@@ -96,7 +107,7 @@ vec2 raycast( in vec3 ro, in vec3 rd )
     //else return res;
     
     // raymarch primitives   
-    vec2 tb = iBox( ro-vec3(0.0,0.4,-0.5), rd, vec3(2.5,0.41,3.0) );
+    vec2 tb = iBox( ro-vec3(0.0,0.4,-0.5), rd, vec3(2.5,1.41,3.0) );
     if( tb.x<tb.y && tb.y>0.0 && tb.x<tmax)
     {
         //return vec2(tb.x,2.0);
