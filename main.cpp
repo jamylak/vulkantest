@@ -23,6 +23,13 @@
     }                                                                          \
   } while (0);
 
+struct PushConstants {
+  float iTime;
+  int iFrame;
+  glm::vec2 iResolution;
+  glm::vec2 iMouse;
+};
+
 void initGLFW() {
   // Initialize GLFW
   if (!glfwInit()) {
@@ -534,13 +541,12 @@ createCommandBuffers(const VkDevice &logicalDevice,
   return commandBuffers;
 }
 
-void renderScene(
-    const VkImage &image, const VkImageView &imageView,
-    const VkSurfaceCapabilitiesKHR surfaceCapabilities,
-    const VkCommandBuffer &commandBuffer, const VkPipeline &pipeline,
-    const VkPipelineLayout &pipelineLayout,
-    const std::chrono::high_resolution_clock::time_point &progStartT,
-    const int iFrame) {
+void renderScene(const VkImage &image, const VkImageView &imageView,
+                 const VkSurfaceCapabilitiesKHR surfaceCapabilities,
+                 const VkCommandBuffer &commandBuffer,
+                 const VkPipeline &pipeline,
+                 const VkPipelineLayout &pipelineLayout,
+                 const PushConstants &pushConstants) {
   // spdlog::info("Check swapchain image view [0]");
   // spdlog::info("Swapchain image view handle: {}",
   //              reinterpret_cast<uint64_t>(swapchainImageViews[0]));
@@ -595,25 +601,6 @@ void renderScene(
                        nullptr, 0, nullptr, 1, &imageMemoryBarrierDraw);
 
   vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-
-  std::chrono::high_resolution_clock::time_point currentT =
-      std::chrono::high_resolution_clock::now();
-
-  float iTime = std::chrono::duration_cast<std::chrono::nanoseconds>(currentT -
-                                                                     progStartT)
-                    .count() *
-                1e-9;
-  struct PushConstants {
-    float iTime;
-    int iFrame;
-    glm::vec2 iResolution;
-  } pushConstants;
-
-  pushConstants.iTime = iTime;
-  pushConstants.iFrame = iFrame;
-  pushConstants.iResolution =
-      glm::vec2{surfaceCapabilities.currentExtent.width,
-                surfaceCapabilities.currentExtent.height};
 
   vkCmdPushConstants(commandBuffer, pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants),
@@ -962,6 +949,7 @@ int main() {
   uint32_t currentImage = 0;
   int iFrame = 0;
   std::chrono::high_resolution_clock::time_point cpuStart, cpuEnd;
+  PushConstants pushConstants;
   while (!glfwWindowShouldClose(window)) {
     cpuStart = std::chrono::high_resolution_clock::now();
     glfwPollEvents();
@@ -1021,9 +1009,30 @@ int main() {
     vkCmdWriteTimestamp(commandBuffers[imageIndex],
                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queryPool,
                         currentImage * 2);
+
+    std::chrono::high_resolution_clock::time_point currentT =
+        std::chrono::high_resolution_clock::now();
+
+    float iTime = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                      currentT - progStartT)
+                      .count() *
+                  1e-9;
+
+    double xpos, ypos;
+    glfwGetCursorPos(window, &xpos, &ypos);
+
+    pushConstants.iTime = iTime;
+    pushConstants.iFrame = iFrame;
+    pushConstants.iResolution =
+        glm::vec2{surfaceCapabilities.currentExtent.width,
+                  surfaceCapabilities.currentExtent.height};
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+      pushConstants.iMouse = glm::vec2{xpos, ypos};
+    }
+
     renderScene(swapchainImages[imageIndex], swapchainImageViews[imageIndex],
                 surfaceCapabilities, commandBuffers[imageIndex], pipeline,
-                pipelineLayout, progStartT, iFrame);
+                pipelineLayout, pushConstants);
 
     vkCmdWriteTimestamp(commandBuffers[imageIndex],
                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool,

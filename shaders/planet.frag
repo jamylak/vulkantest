@@ -6,6 +6,7 @@ layout (push_constant) uniform PushConstants {
     float iTime;
     int iFrame; 
     vec2 iResolution;
+    vec2 iMouse;
 } pc;
 layout (location = 0) in vec2 TexCoord;
 layout (location = 0) out vec4 color;
@@ -15,6 +16,7 @@ layout (location = 0) out vec4 color;
 #define iTime pc.iTime
 #define iResolution pc.iResolution
 #define iFrame pc.iFrame
+#define iMouse pc.iMouse
 #define ZERO (min(iFrame,0))
 
 //------------------------------------------------------------------
@@ -280,8 +282,8 @@ mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
 
 void main()
 {
-    // vec2 mo = iMouse.xy/iResolution.xy;
-    vec2 mo = vec2(0.5, 0.5);
+    vec2 mo = max(vec2(0.0), iMouse.xy/iResolution.xy);
+    // vec2 mo = vec2(0.5, 0.5);
 	float time = 32.0 + iTime*1.5;
 
     // camera	
@@ -303,9 +305,11 @@ void main()
 
      // ray differentials
     // vec2 px = (2.0*(fragCoord+vec2(1.0,0.0))-iResolution.xy)/iResolution.y;
+    // vec2 px = p + vec2(.001, 0.0);
     vec2 px = p;
 
     // vec2 py = (2.0*(fragCoord+vec2(0.0,1.0))-iResolution.xy)/iResolution.y;
+    // vec2 py = p + vec2(0.0, .001);
     vec2 py = p;
     vec3 rdx = ca * normalize( vec3(px,fl) );
     vec3 rdy = ca * normalize( vec3(py,fl) );
