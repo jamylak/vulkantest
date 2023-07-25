@@ -7,7 +7,11 @@ project(Planet)
 set(CMAKE_CXX_STANDARD 20)
 
 # Link only when creating targets
-add_executable(Planet main.cpp)
+add_executable(Planet fwatcher/fwatcher.cpp main.cpp)
+
+find_package(Boost 1.65.1 REQUIRED COMPONENTS filesystem)
+include_directories(${Boost_INCLUDE_DIRS})
+
 find_package(spdlog REQUIRED)
 target_link_libraries(Planet PRIVATE spdlog::spdlog)
 
@@ -39,6 +43,7 @@ target_include_directories(Planet PRIVATE ${MOLTEN_VK_PATH}/include)
 
 # Link MoltenVK library
 target_link_libraries(Planet PRIVATE ${MOLTEN_VK_LIB})
+target_link_libraries(Planet PRIVATE ${Boost_LIBRARIES})
 
 add_custom_command(
   OUTPUT ../shaders/fullscreenquad.spv
@@ -72,4 +77,5 @@ target_compile_options(${TARGET_NAME} Planet PRIVATE -Wno-c99-designator)
 # else()
 #   target_compile_options(${TARGET_NAME} Planet PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-c99-designator)
 # endif()
+
 

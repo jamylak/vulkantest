@@ -6,6 +6,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 #define GLFW_INCLUDE_VULKAN
+#include "fwatcher/fwatcher.h"
 #include <GLFW/glfw3.h>
 #include <array>
 #include <glm/vec2.hpp>
@@ -950,6 +951,13 @@ int main() {
       createSemaphores(logicalDevice, swapchainImages.size());
 
   auto queryPool = createQueryPool(logicalDevice, 2 * swapchainImages.size());
+
+  FWatcher watcher("shaders", std::chrono::milliseconds(300), [&]() {
+    pipeline =
+        createPipeline(logicalDevice, pipelineLayout, surfaceCapabilities);
+    spdlog::info("Shaders changed");
+  });
+  watcher.start();
 
   uint32_t currentImage = 0;
   int iFrame = 0;
