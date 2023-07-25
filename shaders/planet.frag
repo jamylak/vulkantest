@@ -64,18 +64,22 @@ vec2 opU( vec2 d1, vec2 d2 )
 	return (d1.x<d2.x) ? d1 : d2;
 }
 
-//------------------------------------------------------------------
-
-vec2 map( in vec3 pos )
-{
+vec2 map( in vec3 p ) {
     vec2 res = vec2(1000.0, 0.0);
 
+    res = opU(res, vec2(sdSphere(p + vec3(.0, -.5, .0), 0.4), 20.9));
 
-    res = opU(res, vec2(sdSphere(pos + vec3(.0, -.5, .0), 0.3), 2.0));
-    res = opU(res, vec2(sdSphere(pos + vec3(.1, -.7, .0), 0.1), 3.0));
+    vec3 q = vec3(abs(p.x)-.15,p.y,p.z + 0.1); 
+    res = opU(res, vec2(sdSphere(q + vec3(-.0, -.62, .15), 0.16), 3.0));
+    res = opU(res, vec2(sdSphere(q + vec3(-.01, -.62, .21), 0.105), 4.0));
 
-    // d = min(s1, s2);
-    // vec2 res = vec2(d, 2.8 );
+    vec3 r = vec3(abs(p.x)-.1,p.y - 0.2,p.z + 0.0);
+    r.y -= r.x * r.x + r.x * 0.3;
+    res = opU(res, vec2(sdCapsule(r, vec3(.0, .5, .0), vec3(.2, .5, .0), 0.05), 5.0));
+
+    r = vec3(abs(p.x)-.07,p.y - 0.25,p.z + 0.35);
+    r.y -= r.x * r.x + r.x * 0.3;
+    res = opU(res, vec2(sdCapsule(r, vec3(.0, .5, .0), vec3(.18, .5, .0), 0.05), 11.4));
     
     return res;
 }
@@ -125,7 +129,7 @@ vec2 raycast( in vec3 ro, in vec3 rd )
                 res = vec2(t,h.y); 
                 break;
             }
-            t += h.x;
+            t += h.x * 0.8;
         }
     }
     
@@ -218,6 +222,12 @@ vec3 render( in vec3 ro, in vec3 rd, in vec3 rdx, in vec3 rdy )
             col = 0.15 + f*vec3(0.05);
             ks = 0.4;
         }
+        if (m == 4.0) {
+            col = vec3(0.0, 0.0, 0.0);
+        }
+        if (m == 5.0) {
+            col = vec3(1.0, 0.0, 0.0);
+        }
 
         // lighting
         float occ = calcAO( pos, nor );
@@ -282,7 +292,7 @@ mat3 setCamera( in vec3 ro, in vec3 ta, float cr )
 
 void main()
 {
-    vec2 mo = max(vec2(0.0), iMouse.xy/iResolution.xy);
+    vec2 mo =  iMouse.xy/iResolution.xy;
     // vec2 mo = vec2(0.5, 0.5);
 	float time = 32.0 + iTime*1.5;
 
