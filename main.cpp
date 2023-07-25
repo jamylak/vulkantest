@@ -897,6 +897,7 @@ int main() {
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
   bool framebufferResized = false;
+  bool pipelineUpdated = false;
 
   glfwSetWindowUserPointer(window, &framebufferResized);
 
@@ -953,8 +954,7 @@ int main() {
   auto queryPool = createQueryPool(logicalDevice, 2 * swapchainImages.size());
 
   FWatcher watcher("shaders", std::chrono::milliseconds(300), [&]() {
-    pipeline =
-        createPipeline(logicalDevice, pipelineLayout, surfaceCapabilities);
+    pipelineUpdated = true;
     spdlog::info("Shaders changed");
   });
   watcher.start();
@@ -987,6 +987,13 @@ int main() {
       framebufferResized = false;
 
       continue;
+    }
+    if (pipelineUpdated) {
+      VK_CHECK(vkDeviceWaitIdle(logicalDevice));
+      vkDestroyPipeline(logicalDevice, pipeline, nullptr);
+      pipeline =
+          createPipeline(logicalDevice, pipelineLayout, surfaceCapabilities);
+      pipelineUpdated = false;
     }
 
     // Wait for the fence from the last frame before acquiring next image
