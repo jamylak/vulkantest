@@ -71,17 +71,21 @@ mat2x2 rot( in float a ) { float c = cos(a), s = sin(a); return mat2x2(c,s,-s,c)
 vec2 map( in vec3 p ) {
     vec2 res = vec2(1000.0, 0.0);
 
-    // p.y += sin(p.x + p.y * p.z + iTime) * 0.2;
-    p.y += sin(p.x + cos(p.y * p.z) + iTime) * 0.2;
+    p.y += sin(p.x + p.y * p.z + iTime) * 0.1;
+    // p.y += sin(p.x + cos(p.y * p.z) + iTime) * 0.2;
 
     vec3 q =vec3(0.0, 0.9, 0.0); 
     float d = sdPlane(p + q);
     res = opU(res, vec2(d, 0.0));
 
-    vec3 p2 = p + vec3(-0.5, 0.5, 0.);
+    float w = 0.1 + sin(iTime) + 1.0;
+    // float w = 1.3;
+    // vec3 p2 = p + vec3(-w, 0.5, 0.);
+    vec3 p2 = p + vec3(.0, .5, .0);
     p2.xy *= rot(PI * 1./8. + sin(iTime) - 1.0);
-    p2.x += 0.5;
-    float b = sdBox(p2, vec3(0.5, 0.1, 0.5));
+    p2.x += w;
+    
+    float b = sdBox(p2, vec3(w, 0.1, 0.5));
     res = opU(res, vec2(b, 2.0));
     return res;
 }
@@ -295,7 +299,7 @@ void main()
 
     // camera	
     vec3 ta = vec3( 0.25, -0.75, -0.75 );
-    vec3 ro = ta + vec3( 4.5*cos(0.1*time + 7.0*mo.x), 2.2, 4.5*sin(0.1*time + 7.0*mo.x) );
+    vec3 ro = ta + vec3( 4.5*cos(0.1*time + 7.0*mo.x), 2.2, 4.5*sin(0.1*time + 7.0*mo.x));
     // camera-to-world transformation
     mat3 ca = setCamera( ro, ta, 0.0 );
 
