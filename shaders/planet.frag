@@ -89,6 +89,7 @@ vec2 map( in vec3 p ) {
     vec3 p2 = p + vec3(.0, .5, .0);
     p2.xy *= rot((sin(time)*1.65 + 1.65) * interval - PI);
     p2.x += w;
+    p2.x += 0.1 + (sin(time)*1.0 + 1.0) * (1.0 - interval);
     
     float b = sdBox(p2, vec3(w, 0.05, 0.25));
     res = opU(res, vec2(b, 2.0));
