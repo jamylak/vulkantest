@@ -78,14 +78,16 @@ vec2 map( in vec3 p ) {
     float d = sdPlane(p + q);
     res = opU(res, vec2(d, 0.0));
 
-    // float time = iTime * 16.0;
-    const float time = iTime;
+    float time = iTime * 5.0;
+    // const float time = iTime;
 
-    float w = 0.1 + sin(time)*1.0 + 1.0;
+    float interval = step(PI*2.,mod(time+1.6,4*PI));
+
+    float w = 0.1 + (sin(time)*1.0 + 1.0) * interval;
     // float w = 1.3;
     // vec3 p2 = p + vec3(-w, 0.5, 0.);
     vec3 p2 = p + vec3(.0, .5, .0);
-    p2.xy *= rot(PI * 1./8. + sin(time) * 0.7 - 1.0);
+    p2.xy *= rot((sin(time)*1.65 + 1.65) * interval - PI);
     p2.x += w;
     
     float b = sdBox(p2, vec3(w, 0.05, 0.25));
