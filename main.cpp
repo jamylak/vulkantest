@@ -875,26 +875,41 @@ VkQueryPool createQueryPool(const VkDevice &logicalDevice,
   return queryPool;
 }
 
-int main() {
+struct WindowData {
+  bool framebufferResized;
   std::chrono::high_resolution_clock::time_point progStartT;
-  progStartT = std::chrono::high_resolution_clock::now();
+};
+
+int main() {
+  WindowData windowData = {
+      .framebufferResized = false,
+      .progStartT = std::chrono::high_resolution_clock::now(),
+  };
 
   spdlog::set_level(spdlog::level::info);
   // spdlog::set_level(spdlog::level::err);
   initGLFW();
   GLFWwindow *window = createGLFWwindow();
-  bool framebufferResized = false;
   bool pipelineUpdated = false;
 
-  glfwSetWindowUserPointer(window, &framebufferResized);
+  glfwSetWindowUserPointer(window, &windowData);
 
   glfwSetFramebufferSizeCallback(
       window, [](GLFWwindow *window, int width, int height) {
-        bool *framebufferResized =
-            static_cast<bool *>(glfwGetWindowUserPointer(window));
-        *framebufferResized = true;
+        WindowData *windowData =
+            static_cast<WindowData *>(glfwGetWindowUserPointer(window));
+        windowData->framebufferResized = true;
         spdlog::info("Framebuffer resized to {}x{}", width, height);
       });
+  glfwSetKeyCallback(window, [](GLFWwindow *window, int key, int scancode,
+                                int action, int mods) {
+    if (key == GLFW_KEY_T && action == GLFW_PRESS) {
+      spdlog::info("T pressed");
+      WindowData *windowData =
+          static_cast<WindowData *>(glfwGetWindowUserPointer(window));
+      windowData->progStartT = std::chrono::high_resolution_clock::now();
+    }
+  });
 
   VkInstance instance = setupVulkanInstance();
   VkPhysicalDevice physicalDevice = findGPU(instance);
@@ -953,7 +968,7 @@ int main() {
   while (!glfwWindowShouldClose(window)) {
     cpuStart = std::chrono::high_resolution_clock::now();
     glfwPollEvents();
-    if (framebufferResized) {
+    if (windowData.framebufferResized) {
       VK_CHECK(vkDeviceWaitIdle(logicalDevice));
       for (auto &imageView : swapchainImageViews)
         vkDestroyImageView(logicalDevice, imageView, nullptr);
@@ -972,7 +987,7 @@ int main() {
 
       fences = createFences(logicalDevice, swapchainImages.size());
       currentImage = 0;
-      framebufferResized = false;
+      windowData.framebufferResized = false;
 
       continue;
     }
@@ -1014,7 +1029,7 @@ int main() {
         std::chrono::high_resolution_clock::now();
 
     float iTime = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                      currentT - progStartT)
+                      currentT - windowData.progStartT)
                       .count() *
                   1e-9;
 
