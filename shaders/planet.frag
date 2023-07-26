@@ -78,19 +78,25 @@ vec2 map( in vec3 p ) {
     float d = sdPlane(p + q);
     res = opU(res, vec2(d, 0.0));
 
-    float time = iTime * 5.0;
     // const float time = iTime;
-
-    float interval = step(PI*2.,mod(time+1.6,4*PI));
-
-    float w = 0.1 + (sin(time)*1.0 + 1.0) * interval;
-    // float w = 1.3;
+    // float interval = step(PI*2.,mod(time+1.6,4*PI));
+    // float w = 0.1 + (sin(time)*1.0 + 1.0) * interval;
     // vec3 p2 = p + vec3(-w, 0.5, 0.);
+    // p2.xy *= rot((sin(time)*1.65 + 1.65) * interval - PI);
+    // p2.x += 0.1 + (sin(time)*1.0 + 1.0) * (interval);
+   
+    // 1 - Chomp forward. Rotate and extend width
+    float t = mod(iTime * 5.0, 18.0);
+    float w = 0.2 + min(t*t, 0.7);
     vec3 p2 = p + vec3(.0, .5, .0);
-    p2.xy *= rot((sin(time)*1.65 + 1.65) * interval - PI);
+    p2.xy *= rot(-min(t * t, PI));
     p2.x += w;
-    // p2.x += 0.1 + (sin(time)*1.0 + 1.0) * (1.0 - interval);
-    
+
+    // 2 - Drag the back forward back to original width
+    float a = min(step(1.7,t)*(t-1.7)*(t-1.7)*0.03,0.7);
+    w -= a;
+    p2.x += a;
+   
     float b = sdBox(p2, vec3(w, 0.05, 0.25));
     res = opU(res, vec2(b, 2.0));
     return res;
