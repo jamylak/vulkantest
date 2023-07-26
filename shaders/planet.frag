@@ -19,6 +19,8 @@ layout (location = 0) out vec4 color;
 #define iMouse pc.iMouse
 #define ZERO (min(iFrame,0))
 
+const float PI = 3.14159265359;
+
 //------------------------------------------------------------------
 float dot2( in vec2 v ) { return dot(v,v); }
 float dot2( in vec3 v ) { return dot(v,v); }
@@ -64,29 +66,23 @@ vec2 opU( vec2 d1, vec2 d2 )
 	return (d1.x<d2.x) ? d1 : d2;
 }
 
+mat2x2 rot( in float a ) { float c = cos(a), s = sin(a); return mat2x2(c,s,-s,c); }
+
 vec2 map( in vec3 p ) {
     vec2 res = vec2(1000.0, 0.0);
-    vec3 r;
 
-    float m = sdSphere(p + vec3(.0, -.5, .0), 0.5);
+    // p.y += sin(p.x + p.y * p.z + iTime) * 0.2;
+    p.y += sin(p.x + cos(p.y * p.z) + iTime) * 0.2;
 
-    // r = vec3(p.x,p.y - 0.35,p.z + 0.55);
-    // r.y -= r.x * r.x;
-    // float m2 = sdBox(r, vec3(0.5, 0.1, 0.2));
-    // m = max(m, -m2);
-    
+    vec3 q =vec3(0.0, 0.9, 0.0); 
+    float d = sdPlane(p + q);
+    res = opU(res, vec2(d, 0.0));
 
-    res = opU(res, vec2(m, 20.9));
-
-
-    vec3 q = vec3(abs(p.x)-.15,p.y,p.z + 0.2); 
-    res = opU(res, vec2(sdSphere(q + vec3(-.0, -.7, .13), 0.22), 3.0));
-    res = opU(res, vec2(sdSphere(q + vec3(-.01, -.72, .199), 0.15), 14.9));
-
-    r = vec3(abs(p.x)-.1,p.y - 0.3,p.z + 0.0);
-    r.y -= r.x * r.x + r.x * 0.3;
-    res = opU(res, vec2(sdCapsule(r, vec3(.0, .5, .0), vec3(.2, .5, .0), 0.15), 5.0));
-    
+    vec3 p2 = p + vec3(-0.5, 0.5, 0.);
+    p2.xy *= rot(PI * 1./8. + sin(iTime) - 1.0);
+    p2.x += 0.5;
+    float b = sdBox(p2, vec3(0.5, 0.1, 0.5));
+    res = opU(res, vec2(b, 2.0));
     return res;
 }
 
@@ -110,24 +106,20 @@ vec2 raycast( in vec3 ro, in vec3 rd )
     float tmax = 20.0;
 
     // raytrace floor plane
-    float tp1 = (0.0-ro.y)/rd.y;
-    if( tp1>0.0 )
-    {
-        tmax = min( tmax, tp1 );
-        res = vec2( tp1, 1.0 );
-    }
+    // float tp1 = (0.0-ro.y)/rd.y;
+    // if( tp1>0.0 )
+    // {
+    //     tmax = min( tmax, tp1 );
+    //     res = vec2( tp1, 1.0 );
+    // }
     //else return res;
     
     // raymarch primitives   
-    vec2 tb = iBox( ro-vec3(0.0,0.4,-0.5), rd, vec3(2.5,1.41,3.0) );
-    if( tb.x<tb.y && tb.y>0.0 && tb.x<tmax)
-    {
+    // vec2 tb = iBox( ro-vec3(0.0,0.4,10.5), rd, vec3(2.5,1.41,30.0) );
         //return vec2(tb.x,2.0);
-        tmin = max(tb.x,tmin);
-        tmax = min(tb.y,tmax);
 
         float t = tmin;
-        for( int i=0; i<70 && t<tmax; i++ )
+        for( int i=0; i<500; i++ )
         {
             vec2 h = map( ro+rd*t );
             if( abs(h.x)<(0.0001*t) )
@@ -135,9 +127,8 @@ vec2 raycast( in vec3 ro, in vec3 rd )
                 res = vec2(t,h.y); 
                 break;
             }
-            t += h.x * 0.8;
+            t += h.x * 0.6;
         }
-    }
     
     return res;
 }
