@@ -68,6 +68,44 @@ vec2 opU( vec2 d1, vec2 d2 )
 
 mat2x2 rot( in float a ) { float c = cos(a), s = sin(a); return mat2x2(c,s,-s,c); }
 
+// http://research.microsoft.com/en-us/um/people/hoppe/ravg.pdf
+float det( vec2 a, vec2 b ) { return a.x*b.y-b.x*a.y; }
+vec3 getClosest( vec2 b0, vec2 b1, vec2 b2 ) 
+{
+  float a =     det(b0,b2);
+  float b = 2.0*det(b1,b0);
+  float d = 2.0*det(b2,b1);
+  float f = b*d - a*a;
+  vec2  d21 = b2-b1;
+  vec2  d10 = b1-b0;
+  vec2  d20 = b2-b0;
+  vec2  gf = 2.0*(b*d21+d*d10+a*d20); gf = vec2(gf.y,-gf.x);
+  vec2  pp = -f*gf/dot(gf,gf);
+  vec2  d0p = b0-pp;
+  float ap = det(d0p,d20);
+  float bp = 2.0*det(d10,d0p);
+  float t = clamp( (ap+bp)/(2.0*a+b+d), 0.0 ,1.0 );
+  return vec3( mix(mix(b0,b1,t), mix(b1,b2,t),t), t );
+}
+
+vec2 sdBezier( vec3 a, vec3 b, vec3 c, vec3 p, out vec2 pos )
+{
+	vec3 w = normalize( cross( c-b, a-b ) );
+	vec3 u = normalize( c-b );
+	vec3 v = normalize( cross( w, u ) );
+
+	vec2 a2 = vec2( dot(a-b,u), dot(a-b,v) );
+	vec2 b2 = vec2( 0.0 );
+	vec2 c2 = vec2( dot(c-b,u), dot(c-b,v) );
+	vec3 p3 = vec3( dot(p-b,u), dot(p-b,v), dot(p-b,w) );
+
+	vec3 cp = getClosest( a2-p3.xy, b2-p3.xy, c2-p3.xy );
+
+    pos = cp.xy;
+    
+	return vec2( sqrt(dot(cp.xy,cp.xy)+p3.z*p3.z), cp.z );
+}
+
 vec2 map( in vec3 p ) {
     vec2 res = vec2(1000.0, 0.0);
 
@@ -78,27 +116,20 @@ vec2 map( in vec3 p ) {
     float d = sdPlane(p + q);
     res = opU(res, vec2(d, 0.0));
 
-    // const float time = iTime;
-    // float interval = step(PI*2.,mod(time+1.6,4*PI));
-    // float w = 0.1 + (sin(time)*1.0 + 1.0) * interval;
-    // vec3 p2 = p + vec3(-w, 0.5, 0.);
-    // p2.xy *= rot((sin(time)*1.65 + 1.65) * interval - PI);
-    // p2.x += 0.1 + (sin(time)*1.0 + 1.0) * (interval);
-   
-    // 1 - Chomp forward. Rotate and extend width
-    float t = mod(iTime * 5.0, 18.0);
-    float w = 0.2 + min(t*t, 0.7);
-    vec3 p2 = p + vec3(.0, .5, .0);
-    p2.xy *= rot(-min(t * t, PI));
-    p2.x += w;
+    float bo = sdBox(p - vec3(0.0, .0, 0.0), vec3(1.1, 0.8, 0.5));
+    float bo2 = sdBox(p - vec3(0.0, -.0, 0.5), vec3(0.9, 0.6, 0.3));
+    bo = max(bo, -bo2);
+    res = opU(res, vec2(bo, 6.0));
 
-    // 2 - Drag the back forward back to original width
-    float a = min(step(1.7,t)*(t-1.7)*(t-1.7)*0.03,0.7);
-    w -= a;
-    p2.x += a;
-   
-    float b = sdBox(p2, vec3(w, 0.05, 0.25));
-    res = opU(res, vec2(b, 2.0));
+
+    // https://www.shadertoy.com/view/4dKGWm
+    vec2 kk;
+    vec3 o = vec3(.0, -.95, .0);
+    vec2 b = sdBezier( vec3(-0.5,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.45), p + o, kk );
+    float tr = 0.10 - 0.1*b.y;
+    float d2 = b.x - tr;
+    res = opU(res, vec2(d2, 3.0));
+
     return res;
 }
 
@@ -235,6 +266,8 @@ vec3 render( in vec3 ro, in vec3 rd, in vec3 rdx, in vec3 rdy )
             col = 0.15 + f*vec3(0.05);
             ks = 0.4;
         }
+        if (m == 3.0)
+            col = vec3(0.92, 0.95, 0.9);
         if (m == 4.0) {
             col = vec3(0.0, 0.0, 0.0);
         }
@@ -313,6 +346,7 @@ void main()
     // float zb = 10.0;
     float zb = 0.0;
     vec3 ta = vec3( .0, .0, 0.0);
+    time = 32.0;
     vec3 ro = ta + vec3( 4.5*cos(0.1*time + 7.0*mo.x), 2.2, zb + 4.5*sin(0.1*time + 7.0*mo.x));
     // camera-to-world transformation
     mat3 ca = setCamera( ro, ta, 0.0 );
