@@ -116,55 +116,58 @@ vec2 map( in vec3 p ) {
     float d = sdPlane(p + q);
     res = opU(res, vec2(d, 0.0));
 
-    float obo = sdBox(p - vec3(0.0, .0, 0.0), vec3(1.4, 0.8, 0.6));
-    float obo2 = sdBox(p - vec3(0.0, -.0, 0.5), vec3(1.3, 0.7, 0.5));
-    obo = max(obo, -obo2);
-    res = opU(res, vec2(obo, 6.0));
+    float obo = sdBox(p - vec3(0.0, .0, 0.0), vec3(1.4, 0.8, 0.65));
+    if (obo <= 0.85) {
+        float obo2 = sdBox(p - vec3(0.0, -.0, 0.5), vec3(1.3, 0.7, 0.5));
+        obo = max(obo, -obo2);
+        res = opU(res, vec2(obo, 6.0));
 
-    float bo = sdBox(p - vec3(0.0, -sin(p.x*5.) * 0.00, 0.0),       vec3(1.3, 0.65 , 0.5)) - 0.05;
-    float bo2 = sdBox(p - vec3(0.0, - sin(p.x*5.)*p.x * 0.04, 0.5), vec3(1.3, 0.6, 0.5));
-    bo = max(bo, -bo2);
-    res = opU(res, vec2(bo, 2.0));
+        float bo = sdBox(p - vec3(0.0, -sin(p.x*5.) * 0.00, 0.0),       vec3(1.24, 0.65 , 0.5)) - 0.15;
+        float bo2 = sdBox(p - vec3(0.0, - sin(p.x*5.+0.9)*p.x * 0.08 - 0.00, 0.5), vec3(1.3, 0.6, 0.5));
+        bo = max(bo, -bo2);
+        res = opU(res, vec2(bo, 2.0));
 
-    // black part of roof of mouth
-    float bo3 = sdBox(p - vec3(0.0, -.0, -0.2), vec3(1.3, 0.6, 0.3));
-    res = opU(res, vec2(bo3, 4.0));
+        // black part of roof of mouth
+        float bo3 = sdBox(p - vec3(0.0, -.0, -0.2), vec3(1.3, 0.6, 0.3));
+        res = opU(res, vec2(bo3, 4.0));
 
 
-    // https://www.shadertoy.com/view/4dKGWm
-    vec2 kk;
-    vec3 o = vec3(.05, -1., -.25);
-    vec3 o2 = vec3(.0, .15, .05);
-    vec2 b = sdBezier( vec3(-0.6,-0.25,0.28), vec3(-0.54,-0.6,0.30), vec3(-0.5,-0.8,0.37), p + o + o2, kk );
-    float tr = 0.17- 0.17*b.y;
-    float d2 = b.x - tr;
-    res = opU(res, vec2(d2, 3.0));
+        // https://www.shadertoy.com/view/4dKGWm
+        vec2 kk;
+        vec3 o = vec3(.05, -1., -.21);
+        vec3 o2 = vec3(.0, .15, .05);
+        vec2 b = sdBezier( vec3(-0.6,-0.25,0.28), vec3(-0.54,-0.6,0.30), vec3(-0.5,-0.8,0.37), p + o + o2, kk );
+        float tr = 0.17- 0.17*b.y;
+        float d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
 
-    o.x -= 0.1;
-    b = sdBezier( vec3(-0.4,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.41), p + o, kk );
-    tr = 0.12 - 0.15*b.y;
-    d2 = b.x - tr;
-    res = opU(res, vec2(d2, 3.0));
+        o.x -= 0.1;
+        b = sdBezier( vec3(-0.4,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.41), p + o, kk );
+        tr = 0.12 - 0.15*b.y;
+        d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
 
-    o.x -= 0.4;
-    b = sdBezier( vec3(-0.5,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.41), p + o, kk );
-    tr = 0.15 - 0.25*b.y;
-    d2 = b.x - tr;
-    res = opU(res, vec2(d2, 3.0));
+        o.x -= 0.4;
+        b = sdBezier( vec3(-0.5,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.41), p + o, kk );
+        tr = 0.15 - 0.25*b.y;
+        d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
 
-    o.x -= 0.4;
-    b = sdBezier( vec3(-0.6,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.41), p + o, kk );
-    tr = 0.15 - 0.2*b.y;
-    d2 = b.x - tr;
-    res = opU(res, vec2(d2, 3.0));
+        o.x -= 0.4;
+        b = sdBezier( vec3(-0.6,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.41), p + o, kk );
+        tr = 0.15 - 0.2*b.y;
+        d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
 
-    o.x -= 0.2;
-    o2 = vec3(.0, .15, .0);
-    b = sdBezier( vec3(-0.4,-0.25,0.28), vec3(-0.45,-0.6,0.30), vec3(-0.5,-0.8,0.37), p + o + o2, kk );
-    tr = 0.15- 0.15*b.y;
-    d2 = b.x - tr;
-    res = opU(res, vec2(d2, 3.0));
+        o.x -= 0.2;
+        o2 = vec3(.0, .15, .0);
+        b = sdBezier( vec3(-0.4,-0.25,0.28), vec3(-0.45,-0.6,0.30), vec3(-0.5,-0.8,0.37), p + o + o2, kk );
+        tr = 0.15- 0.15*b.y;
+        d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
 
+
+    }
     return res;
 }
 
