@@ -116,19 +116,41 @@ vec2 map( in vec3 p ) {
     float d = sdPlane(p + q);
     res = opU(res, vec2(d, 0.0));
 
-    float bo = sdBox(p - vec3(0.0, .0, 0.0), vec3(1.1, 0.8, 0.5));
-    float bo2 = sdBox(p - vec3(0.0, -.0, 0.5), vec3(0.9, 0.6, 0.3));
+    // float bo = sdBox(p - vec3(0.0, .0, 0.0), vec3(1.1, 0.8, 0.5));
+    // float bo2 = sdBox(p - vec3(0.0, -.0, 0.5), vec3(0.9, 0.6, 0.3));
+    // bo = max(bo, -bo2);
+    // res = opU(res, vec2(bo, 2.0));
+
+    float bo = sdBox(p - vec3(0.0, .0, 0.0), vec3(0.90, 0.6, 0.5)) - 0.1;
+    float bo2 = sdBox(p - vec3(0.0, -.0, 0.5), vec3(0.9, 0.6, 0.5));
     bo = max(bo, -bo2);
-    res = opU(res, vec2(bo, 6.0));
+    res = opU(res, vec2(bo, 2.0));
+
+    // black part of roof of mouth
+    float bo3 = sdBox(p - vec3(0.0, -.0, -0.2), vec3(0.9, 0.6, 0.3));
+    res = opU(res, vec2(bo3, 4.0));
 
 
     // https://www.shadertoy.com/view/4dKGWm
     vec2 kk;
-    vec3 o = vec3(.0, -.95, .0);
-    vec2 b = sdBezier( vec3(-0.5,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.45), p + o, kk );
-    float tr = 0.10 - 0.1*b.y;
+    vec3 o = vec3(.0, -1., -.25);
+    vec2 b = sdBezier( vec3(-0.6,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.39), p + o, kk );
+    float tr = 0.12 - 0.11*b.y;
     float d2 = b.x - tr;
     res = opU(res, vec2(d2, 3.0));
+
+    o.x -= 0.1;
+    b = sdBezier( vec3(-0.4,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.41), p + o, kk );
+    tr = 0.10 - 0.1*b.y;
+    d2 = b.x - tr;
+    res = opU(res, vec2(d2, 3.0));
+
+    o.x -= 0.4;
+    b = sdBezier( vec3(-0.5,-0.4,0.28), vec3(-0.5,-0.7,0.32), vec3(-0.5,-0.8,0.41), p + o, kk );
+    tr = 0.15 - 0.2*b.y;
+    d2 = b.x - tr;
+    res = opU(res, vec2(d2, 3.0));
+
 
     return res;
 }
@@ -266,6 +288,8 @@ vec3 render( in vec3 ro, in vec3 rd, in vec3 rdx, in vec3 rdy )
             col = 0.15 + f*vec3(0.05);
             ks = 0.4;
         }
+        if (m == 2.0)
+            col = vec3(1., .02, 0.0);
         if (m == 3.0)
             col = vec3(0.92, 0.95, 0.9);
         if (m == 4.0) {
