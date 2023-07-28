@@ -117,7 +117,7 @@ vec2 map( in vec3 p ) {
     res = opU(res, vec2(d, 0.0));
 
     float obo = sdBox(p - vec3(0.0, .0, 0.0), vec3(1.4, 0.8, 0.65));
-    if (obo <= 0.85) {
+    if (obo <= 1.) {
         float obo2 = sdBox(p - vec3(0.0, -.0, 0.5), vec3(1.3, 0.7, 0.5));
         obo = max(obo, -obo2);
         res = opU(res, vec2(obo, 6.0));
@@ -132,7 +132,10 @@ vec2 map( in vec3 p ) {
         res = opU(res, vec2(bo3, 4.0));
 
 
-        // https://www.shadertoy.com/view/4dKGWm
+        // https://www.shadertoy.com/view/4dKG
+        // Top Teeth
+        if (p.y > 0.0)
+        {
         vec2 kk;
         vec3 o = vec3(.05, -1., -.21);
         vec3 o2 = vec3(.0, .15, .05);
@@ -165,14 +168,63 @@ vec2 map( in vec3 p ) {
         tr = 0.15- 0.15*b.y;
         d2 = b.x - tr;
         res = opU(res, vec2(d2, 3.0));
+        }
 
+        // Bottom teeth
+        if (p.y < -0.0)
+        {
+        vec2 kk;
+        vec3 o = vec3(0.6, -0.65, -.25);
+        vec3 o2 = vec3(.0, .0, .0);
+        vec2 b = sdBezier( vec3(-0.6,-1.25,0.28), vec3(-0.54,-0.9,0.30), vec3(-0.5,-0.7,0.37), p + o + o2, kk );
+        float tr = 0.1- 0.24*b.y;
+        float d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
 
+        o.x -= 0.3;
+        b = sdBezier( vec3(-0.6,-1.25,0.28), vec3(-0.54,-0.9,0.30), vec3(-0.5,-0.7,0.37), p + o, kk );
+        tr = 0.1- 0.24*b.y;
+        d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
+
+        o.x -= 0.3;
+        o2 = vec3(.0, .0, .0);
+        b = sdBezier( vec3(-0.6,-1.3,0.3), vec3(-0.54,-0.5,.0), vec3(-0.5,-0.7,-.5), p + o + o2, kk );
+        tr = 0.1- 0.24*b.y;
+        d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
+
+        o.x -= 0.25;
+        // Using mod repeat this tooth 4 times
+        vec3 p2 = p;
+        p2.x = abs(p2.x);
+        // p2.x = mod(p2.x + 0.125, 0.25);
+        o2 = vec3(.0, .0, .0);
+        b = sdBezier( vec3(-0.6,-1.3,0.3), vec3(-0.54,-1.0,.0), vec3(-0.5,-1.6,-.5), p2 + o + o2, kk );
+        tr = 0.1- 0.24*b.y;
+        d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
+
+        o.x -= 0.3;
+        o2 = vec3(.0, .0, .0);
+        b = sdBezier( vec3(-0.6,-1.3,0.3), vec3(-0.54,-0.5,.0), vec3(-0.5,-0.7,-.5), p + o + o2, kk );
+        tr = 0.1- 0.24*b.y;
+        d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
+
+        o.x -= 0.25;
+        o2 = vec3(.0, .0, .0);
+        b = sdBezier( vec3(-0.6,-1.3,0.3), vec3(-0.54,-1.0,.0), vec3(-0.5,-1.6,-.5), p + o + o2, kk );
+        tr = 0.1- 0.24*b.y;
+        d2 = b.x - tr;
+        res = opU(res, vec2(d2, 3.0));
+        }
     }
     return res;
 }
 
 // https://iquilezles.org/articles/boxfunctions
-vec2 iBox( in vec3 ro, in vec3 rd, in vec3 rad ) 
+vec2 ibox( in vec3 ro, in vec3 rd, in vec3 rad ) 
 {
     vec3 m = 1.0/rd;
     vec3 n = m*ro;
@@ -386,7 +438,7 @@ void main()
     // float zb = 10.0;
     float zb = 0.0;
     vec3 ta = vec3( .0, .0, 0.0);
-    time = 32.0;
+    time = 14.;
     vec3 ro = ta + vec3( 4.5*cos(0.1*time + 7.0*mo.x), 2.2, zb + 4.5*sin(0.1*time + 7.0*mo.x));
     // camera-to-world transformation
     mat3 ca = setCamera( ro, ta, 0.0 );
