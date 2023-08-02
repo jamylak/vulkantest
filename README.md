@@ -9,13 +9,12 @@ Will test on windows at some point.
 
 ```sh
 cmake . -B build
-make -C build
 ```
 
 ## Build and run (currently testing on moltenvk)
 
 ```sh
-make -C build && MVK_CONFIG_LOG_LEVEL=3 VK_LAYER_KHRONOS_validation=1 ./build/Planet
+cmake --build build && ./build/Planet
 ```
 
 # Generate the compile_commands.json for LSP
